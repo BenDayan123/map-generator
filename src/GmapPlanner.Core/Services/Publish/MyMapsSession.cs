@@ -249,27 +249,27 @@ public sealed class MyMapsSession : IAsyncDisposable
         var loggedTab = false;
         while (DateTime.UtcNow < deadline)
         {
-            foreach (var frame in OrderedFrames(page))
+            // 1. Classic Picker: its own frames hold the one right input[type=file]. Set it
+            //    directly — the safest path when that dialog is the one on screen.
+            if (await SetFileOnInputAsync(PickerFrames(page), kmlPath))
             {
-                try
-                {
-                    var input = await frame.QuerySelectorAsync("input[type=file]");
-                    if (input is not null)
-                    {
-                        await input.SetInputFilesAsync(kmlPath);
-                        await ConfirmPickerSelectionAsync(page);
-                        return true;
-                    }
-                }
-                catch
-                {
-                    // Frame may have navigated away mid-poll.
-                }
+                await ConfirmPickerSelectionAsync(page);
+                return true;
             }
 
-            // No pre-existing input: the newer dialog only creates it on 'Browse'. Click
-            // Browse and set the KML on the file chooser it opens.
+            // 2. Newer 'Choose a file to import' dialog: it wires up an input only when
+            //    'Browse' is clicked. Catch that file chooser. Done before the main-frame
+            //    input scan below so we never set a stray input[type=file] the editor keeps
+            //    around for other purposes (a wrong-input pick imports nothing).
             if (await TryBrowseFileChooserAsync(page, kmlPath))
+            {
+                await ConfirmPickerSelectionAsync(page);
+                return true;
+            }
+
+            // 3. Fallback: an input[type=file] anywhere else (older builds put it in the
+            //    main document). Only reached when neither of the above worked.
+            if (await SetFileOnInputAsync(page.Frames, kmlPath))
             {
                 await ConfirmPickerSelectionAsync(page);
                 return true;
@@ -299,7 +299,73 @@ public sealed class MyMapsSession : IAsyncDisposable
             await page.WaitForTimeoutAsync(250);
         }
         Log($"no file input found; frames present: {string.Join(", ", page.Frames.Select(f => f.Url))}");
+        await DumpImportDiagnosticsAsync(page, Path.ChangeExtension(kmlPath, ".import-diag.txt"));
         return false;
+    }
+
+    /// <summary>Sets the KML on the first frame in <paramref name="frames"/> that has a file input.</summary>
+    private async Task<bool> SetFileOnInputAsync(IEnumerable<IFrame> frames, string kmlPath)
+    {
+        foreach (var frame in frames)
+        {
+            try
+            {
+                var input = await frame.QuerySelectorAsync("input[type=file]");
+                if (input is not null)
+                {
+                    await input.SetInputFilesAsync(kmlPath);
+                    return true;
+                }
+            }
+            catch
+            {
+                // Frame may have navigated away mid-poll.
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Writes what the import dialog actually looks like — every frame's URL, every
+    /// input[type=file] with its attributes/visibility, and every visible button/link — so
+    /// a run that can't find the upload input yields the real DOM instead of another guess.
+    /// </summary>
+    private async Task DumpImportDiagnosticsAsync(IPage page, string path)
+    {
+        try
+        {
+            var lines = new List<string> { $"URL: {page.Url}", $"frames: {page.Frames.Count}", "" };
+            foreach (var frame in page.Frames)
+            {
+                lines.Add($"=== frame: {frame.Url}");
+                try
+                {
+                    var inputs = await frame.EvalOnSelectorAllAsync<string[]>(
+                        "input[type=file]",
+                        "els => els.map(e => `input file: id=${e.id} name=${e.name} accept=${e.accept} " +
+                        "hidden=${e.hidden} display=${getComputedStyle(e).display}`)");
+                    lines.AddRange(inputs.Length > 0 ? inputs : ["  (no file inputs)"]);
+
+                    var controls = await frame.EvalOnSelectorAllAsync<string[]>(
+                        "button, [role=button], a",
+                        "els => els.filter(e => e.offsetParent !== null)" +
+                        ".map(e => `  ${e.tagName.toLowerCase()}: ${(e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,40)}`)" +
+                        ".filter(t => t.length > 8).slice(0, 40)");
+                    lines.AddRange(controls);
+                }
+                catch (Exception ex)
+                {
+                    lines.Add($"  (frame not readable: {ex.Message})");
+                }
+                lines.Add("");
+            }
+            await File.WriteAllTextAsync(path, string.Join("\n", lines));
+            Log($"wrote import diagnostics to {path}");
+        }
+        catch
+        {
+            // Diagnostic aid only.
+        }
     }
 
     /// <summary>
@@ -312,29 +378,37 @@ public sealed class MyMapsSession : IAsyncDisposable
     {
         foreach (var frame in OrderedFrames(page))
         {
-            ILocator browse;
-            try
+            foreach (var getter in new Func<ILocator>[]
             {
-                browse = frame.GetByRole(AriaRole.Button, new() { NameRegex = MyMapsSelectors.Browse }).First;
-                if (await browse.CountAsync() == 0 || !await browse.IsVisibleAsync()) continue;
-            }
-            catch
+                () => frame.GetByRole(AriaRole.Button, new() { NameRegex = MyMapsSelectors.Browse }),
+                () => frame.GetByRole(AriaRole.Link, new() { NameRegex = MyMapsSelectors.Browse }),
+                () => frame.GetByText(MyMapsSelectors.Browse),
+            })
             {
-                continue;
-            }
+                ILocator browse;
+                try
+                {
+                    browse = getter().First;
+                    if (await browse.CountAsync() == 0 || !await browse.IsVisibleAsync()) continue;
+                }
+                catch
+                {
+                    continue;
+                }
 
-            try
-            {
-                var chooser = await page.RunAndWaitForFileChooserAsync(
-                    async () => await browse.ClickAsync(new() { Timeout = 2000 }),
-                    new() { Timeout = 4000 });
-                await chooser.SetFilesAsync(kmlPath);
-                Log("set the KML via the 'Browse' file chooser");
-                return true;
-            }
-            catch
-            {
-                // That button didn't open a chooser — try the next frame / next poll.
+                try
+                {
+                    var chooser = await page.RunAndWaitForFileChooserAsync(
+                        async () => await browse.ClickAsync(new() { Timeout = 2000 }),
+                        new() { Timeout = 4000 });
+                    await chooser.SetFilesAsync(kmlPath);
+                    Log("set the KML via the 'Browse' file chooser");
+                    return true;
+                }
+                catch
+                {
+                    // That control didn't open a chooser — try the next strategy/frame.
+                }
             }
         }
         return false;
