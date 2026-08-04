@@ -85,7 +85,10 @@
                         <TextBlock Classes="sideHeader" Text="API usage" />
                         <Grid Width="140" Height="140" HorizontalAlignment="Center">
                             <Canvas Width="140" Height="140">
-                                <Ellipse Canvas.Left="16" Canvas.Top="16" Width="108" Height="108"
+                                <!-- Width/Top sized so Avalonia's half-stroke deflation lands the
+                                     track's centerline on radius 54 (Center 70) — the same circle
+                                     the arc path uses — so the green arc aligns with the gray ring. -->
+                                <Ellipse Canvas.Left="10" Canvas.Top="10" Width="120" Height="120"
                                          Stroke="#33808080" StrokeThickness="12" />
                                 <Path Stretch="None" Stroke="{Binding UsageColor}" StrokeThickness="12"
                                       StrokeLineCap="Round" Data="{Binding UsageRingGeometry}" />
