@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1020" d:DesignHeight="720"
         x:Class="GmapPlanner.App.Views.MainWindow"
+        x:Name="Root"
         x:DataType="vm:MainViewModel"
         x:CompileBindings="True"
         Icon="/Assets/avalonia-logo.ico"
@@ -54,12 +55,22 @@
         </Style>
     </Window.Styles>
 
-    <Grid ColumnDefinitions="280,*">
+    <Grid Name="RootGrid">
+        <Grid.ColumnDefinitions>
+            <!-- Sidebar: drag the splitter to resize. MaxWidth is pinned to 1/3 of the
+                 window in code-behind (OnSizeChanged). -->
+            <ColumnDefinition Width="280" MinWidth="220" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
         <!-- ============================ SIDEBAR ============================ -->
-        <Border Grid.Column="0" Background="#14808080" Padding="16">
-            <ScrollViewer>
-                <StackPanel Spacing="6">
+        <!-- Padding is 0 so the scrollbar sits flush against the right edge; the inner
+             content carries its own margin, with extra room on the right as the scrollbar
+             gutter so the bar never overlaps the controls. -->
+        <Border Grid.Column="0" Background="#14808080">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="6" Margin="16,16,14,16">
                     <TextBlock Text="🗺️ My Maps Generator" FontWeight="Bold" FontSize="16" Margin="0,0,0,12" />
 
                     <Button Classes="nav" Content="🗺️  Make Map" Command="{Binding ShowMakeMapCommand}" />
@@ -145,8 +156,14 @@
             </ScrollViewer>
         </Border>
 
+        <!-- Drag to resize the sidebar (clamped to 1/3 of the window in code-behind).
+             8px wide so it's easy to grab; a resize cursor signals it's draggable. -->
+        <GridSplitter Grid.Column="1" Width="8" Background="#22808080"
+                      ResizeDirection="Columns" HorizontalAlignment="Stretch"
+                      Cursor="SizeWestEast" />
+
         <!-- ============================== MAIN ============================== -->
-        <ScrollViewer Grid.Column="1">
+        <ScrollViewer Grid.Column="2">
             <Grid Margin="32,28">
 
                 <!-- ======================== MAKE MAP ======================== -->

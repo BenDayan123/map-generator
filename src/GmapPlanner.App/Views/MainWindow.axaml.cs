@@ -27,6 +27,17 @@ public partial class MainWindow : Window
         };
     }
 
+    /// <summary>Cap the resizable sidebar at a third of the window; clamp if the window shrinks.</summary>
+    protected override void OnSizeChanged(SizeChangedEventArgs e)
+    {
+        base.OnSizeChanged(e);
+        var sidebar = RootGrid.ColumnDefinitions[0];
+        var max = Math.Max(sidebar.MinWidth, e.NewSize.Width / 3);
+        sidebar.MaxWidth = max;
+        if (sidebar.Width.IsAbsolute && sidebar.Width.Value > max)
+            sidebar.Width = new Avalonia.Controls.GridLength(max);
+    }
+
     private static FilePickerOpenOptions JsonPicker(string title) => new()
     {
         Title = title,
