@@ -3,20 +3,46 @@
         xmlns:vm="using:GmapPlanner.App.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="440"
         x:Class="GmapPlanner.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="GmapPlanner.App">
+        Width="640" Height="440"
+        Title="Trip Map Maker">
 
     <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <TextBox Text="{Binding Greeting}"
-             HorizontalAlignment="Center"
-             VerticalAlignment="Center" />
+    <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnDefinitions="Auto,*,Auto">
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,0,0,12"
+                    Text="Trip Map Maker" FontSize="20" FontWeight="Bold" />
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Itinerary file" VerticalAlignment="Center" Margin="0,0,8,8" />
+        <TextBox Grid.Row="1" Grid.Column="1" Margin="0,0,8,8" IsReadOnly="True" Text="{Binding InputFilePath}" />
+        <Button Grid.Row="1" Grid.Column="2" Margin="0,0,0,8" Content="Browse…" Name="BrowseInputButton" />
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Gemini API key" VerticalAlignment="Center" Margin="0,0,8,8" />
+        <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,8" PasswordChar="•"
+                    Text="{Binding GoogleApiKey}" />
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Geocoding API key" VerticalAlignment="Center" Margin="0,0,8,8" />
+        <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,8" PasswordChar="•"
+                    Text="{Binding GeoApiKey}" />
+
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="Output folder" VerticalAlignment="Center" Margin="0,0,8,8" />
+        <TextBox Grid.Row="4" Grid.Column="1" Margin="0,0,8,8" IsReadOnly="True" Text="{Binding OutputDir}" />
+        <Button Grid.Row="4" Grid.Column="2" Margin="0,0,0,8" Content="Browse…" Name="BrowseOutputButton" />
+
+        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal"
+                     Spacing="12" Margin="0,4,0,12">
+            <Button Content="Generate KML" Command="{Binding RunCommand}" IsEnabled="{Binding !IsBusy}" />
+            <ProgressBar Width="300" Minimum="0" Maximum="1" Value="{Binding Progress}" IsIndeterminate="{Binding IsBusy}" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="3" Text="{Binding StatusText}"
+                    TextWrapping="Wrap" VerticalAlignment="Top" />
+    </Grid>
 
 </Window>
