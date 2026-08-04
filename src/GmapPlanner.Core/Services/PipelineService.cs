@@ -10,6 +10,7 @@ public record PipelineResult
     public int Locations { get; init; }
     public int Corrected { get; init; }
     public int Fallback { get; init; }
+    public string? GeocodeWarning { get; init; }
     public List<string> Files { get; init; } = [];
     public string OutputDir { get; init; } = "";
 }
@@ -34,10 +35,11 @@ public class PipelineService(GeminiExtractionService gemini, GeocodingService ge
 
         var corrected = 0;
         var fallback = 0;
+        string? geocodeWarning = null;
         if (!noGeocode)
         {
             progress?.Invoke("Snapping place names to exact coordinates", 0.6);
-            (corrected, fallback) = await geocoding.GeocodeItineraryAsync(trip, ct);
+            (corrected, fallback, geocodeWarning) = await geocoding.GeocodeItineraryAsync(trip, ct);
         }
 
         progress?.Invoke("Writing KML files", 0.85);
@@ -54,6 +56,7 @@ public class PipelineService(GeminiExtractionService gemini, GeocodingService ge
             Locations = trip.Days.Sum(d => d.Locations.Count),
             Corrected = corrected,
             Fallback = fallback,
+            GeocodeWarning = geocodeWarning,
             Files = files,
             OutputDir = tripDir,
         };

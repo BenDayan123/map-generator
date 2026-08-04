@@ -84,6 +84,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _resultDays = "";
     [ObservableProperty] private string _resultLocations = "";
     [ObservableProperty] private string _resultExactCoords = "";
+    [ObservableProperty] private string _geocodeWarning = "";
     [ObservableProperty] private string _resultOutputDir = "";
 
     public ObservableCollection<KmlFileItem> ResultFiles { get; } = [];
@@ -284,6 +285,7 @@ public partial class MainViewModel : ViewModelBase
             ResultDays = result.Days.ToString();
             ResultLocations = result.Locations.ToString();
             ResultExactCoords = $"{result.Corrected}/{result.Corrected + result.Fallback}";
+            GeocodeWarning = result.GeocodeWarning ?? "";
             ResultOutputDir = result.OutputDir;
             foreach (var path in result.Files) ResultFiles.Add(KmlFileItem.FromPath(path));
             HasResult = true;

@@ -239,6 +239,16 @@
                             </Border>
                         </Grid>
 
+                        <!-- Geocoding warning: e.g. billing not enabled, or no Geo key. -->
+                        <Border Classes="card" BorderBrush="#F9A825" Background="#18F9A825"
+                                IsVisible="{Binding GeocodeWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <TextBlock TextWrapping="Wrap" Foreground="#F9A825">
+                                <Run Text="⚠️ Coordinates kept from Gemini — geocoding did not run." FontWeight="SemiBold" />
+                                <LineBreak />
+                                <Run Text="{Binding GeocodeWarning}" />
+                            </TextBlock>
+                        </Border>
+
                         <TextBlock Text="Files" FontSize="18" FontWeight="SemiBold" />
                         <TextBlock Classes="caption" Text="{Binding ResultOutputDir}" />
                         <Button Content="📂 Open output folder" Classes="accent"

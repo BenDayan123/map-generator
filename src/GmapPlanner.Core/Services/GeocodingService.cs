@@ -60,16 +60,21 @@ public class GeocodingService(HttpClient http, string apiKey)
     /// <summary>
     /// Snaps every location's coords to its exact Google Maps point in place, falling
     /// back to Gemini's coords for any location that can't be resolved.
-    /// Returns (correctedCount, fallbackCount).
+    /// Returns (correctedCount, fallbackCount, warning). Warning is a user-facing reason
+    /// when geocoding produced no exact coordinates — a missing key or a fatal API error
+    /// such as REQUEST_DENIED (billing not enabled). It's otherwise null. Without this the
+    /// reason only reached the console, leaving a GUI user staring at "0/N" with no cause.
     /// </summary>
-    public async Task<(int Corrected, int Fallback)> GeocodeItineraryAsync(Trip trip, CancellationToken ct = default)
+    public async Task<(int Corrected, int Fallback, string? Warning)> GeocodeItineraryAsync(
+        Trip trip, CancellationToken ct = default)
     {
         var locations = trip.Days.SelectMany(d => d.Locations).ToList();
 
         if (string.IsNullOrEmpty(apiKey))
         {
-            Console.WriteLine("  ! Geocoding API skipped: no key provided. Keeping Gemini's coordinates.");
-            return (0, locations.Count);
+            const string msg = "Geocoding skipped: no Geocoding API key set. Keeping Gemini's coordinates.";
+            Console.WriteLine($"  ! {msg}");
+            return (0, locations.Count, msg);
         }
 
         var corrected = 0;
@@ -85,7 +90,7 @@ public class GeocodingService(HttpClient http, string apiKey)
             {
                 var remaining = locations.Count - corrected - fallback;
                 Console.WriteLine($"  ! {e.Message}\n    Keeping Gemini's coordinates for {remaining} remaining location(s).");
-                return (corrected, fallback + remaining);
+                return (corrected, fallback + remaining, e.Message);
             }
             if (result is not null)
             {
@@ -98,7 +103,7 @@ public class GeocodingService(HttpClient http, string apiKey)
                 fallback++;
             }
         }
-        return (corrected, fallback);
+        return (corrected, fallback, null);
     }
 }
 
