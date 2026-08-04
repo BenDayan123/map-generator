@@ -12,6 +12,13 @@
     <TrimMode>partial</TrimMode>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- PublishTrimmed turns reflection-based System.Text.Json OFF for the whole app.
+         Our own code goes through the source-generated GmapPlannerJsonContext, but
+         Microsoft.Playwright serializes its driver protocol with reflection-based STJ
+         internally — with the switch off, opening a browser (e.g. Google login) throws
+         "Reflection-based serialization has been disabled". Turn it back on; Playwright
+         is a TrimmerRootAssembly, so the types it reflects over survive trimming. -->
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
 
   <PropertyGroup>
