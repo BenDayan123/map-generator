@@ -19,6 +19,13 @@ public static partial class MyMapsSelectors
     public static readonly Regex UploadTab = new(@"^\s*upload\s*$", RegexOptions.IgnoreCase);
 
     /// <summary>
+    /// The Picker's confirm button. The current Google Picker no longer imports the
+    /// moment the file input is set — after the upload it waits on this "Select" button.
+    /// Older Pickers auto-closed, so clicking it is best-effort.
+    /// </summary>
+    public static readonly Regex PickerSelect = new(@"^\s*(select|open)\s*$", RegexOptions.IgnoreCase);
+
+    /// <summary>
     /// Text the Picker's upload pane shows while it waits for a file — i.e. "the drag
     /// and drop dialog is still open".
     /// </summary>

@@ -247,6 +247,7 @@ public sealed class MyMapsSession : IAsyncDisposable
                     if (input is not null)
                     {
                         await input.SetInputFilesAsync(kmlPath);
+                        await ConfirmPickerSelectionAsync(page);
                         return true;
                     }
                 }
@@ -281,6 +282,49 @@ public sealed class MyMapsSession : IAsyncDisposable
         }
         Log($"no file input found; frames present: {string.Join(", ", page.Frames.Select(f => f.Url))}");
         return false;
+    }
+
+    /// <summary>
+    /// Clicks the Picker's "Select" button once the upload finishes. The current Google
+    /// Picker no longer imports on file-set — it uploads, then waits on this button, so a
+    /// run that only set the file input hangs on the drive-import overlay. Best-effort:
+    /// older Pickers auto-close (the frame disappears) and never show the button, so this
+    /// returns as soon as the Picker frames are gone.
+    /// </summary>
+    private async Task ConfirmPickerSelectionAsync(IPage page, int timeoutMs = 15000)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (DateTime.UtcNow < deadline)
+        {
+            var frames = PickerFrames(page);
+            if (frames.Count == 0) return; // Picker closed on its own (old auto-import path).
+            foreach (var frame in frames)
+            {
+                var getters = new Func<ILocator>[]
+                {
+                    () => frame.GetByRole(AriaRole.Button, new() { NameRegex = MyMapsSelectors.PickerSelect }),
+                    () => frame.GetByText(MyMapsSelectors.PickerSelect),
+                };
+                foreach (var getter in getters)
+                {
+                    try
+                    {
+                        var el = getter().First;
+                        if (await el.IsVisibleAsync() && await el.IsEnabledAsync())
+                        {
+                            Log("clicking the Picker 'Select' button");
+                            await el.ClickAsync(new() { Timeout = 2000 });
+                            return;
+                        }
+                    }
+                    catch
+                    {
+                        // Not this frame/strategy — keep polling.
+                    }
+                }
+            }
+            await page.WaitForTimeoutAsync(300);
+        }
     }
 
     /// <summary>Is the Picker's upload dialog still on screen (waiting for a file)?</summary>
