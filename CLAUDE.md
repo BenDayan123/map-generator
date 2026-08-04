@@ -150,8 +150,32 @@ take the process down instead of showing up in the error banner.
 
 The browser is deliberately **not** bundled (that's what keeps the download reasonable);
 Playwright fetches Chromium on first publish. Playwright's own node driver *is* bundled
-and costs ~100MB — the app is ~144MB because of it. Swapping to PuppeteerSharp would
-bring it back to ~48MB at the cost of reimplementing the role/text selector helpers.
+and costs ~100MB — the app is ~230MB (win-x64) / ~290MB (osx-arm64) because of it.
+Swapping to PuppeteerSharp would bring it back to ~48MB at the cost of reimplementing
+the role/text selector helpers.
+
+### Playwright's node driver is per-platform — three traps, all handled in the csprojs
+
+The driver ships as `.playwright/node/<platform>/` and Playwright execs it as a real
+file, which fights every default here. Publishing `osx-arm64` from a Windows box got
+this wrong three ways before the fixes in `GmapPlanner.Core.csproj` / `GmapPlanner.App.csproj`:
+
+1. **Library leaks the host driver.** `GmapPlanner.Core` holds the `Microsoft.Playwright`
+   PackageReference but builds RID-agnostic, so `Microsoft.Playwright.targets` resolved
+   the driver off the *build host* (win32_x64) and it rode into the mac publish. Core sets
+   `<PlaywrightPlatform>none</PlaywrightPlatform>` — a library bundles no driver; the app does.
+2. **App must map its RID.** `GmapPlanner.App` sets `PlaywrightPlatform` = `osx-arm64` /
+   `win` from `$(RuntimeIdentifier)` so its build output holds the one correct driver.
+   Left empty (a dev `dotnet run`) it falls through to the host driver, which is right for
+   a local run.
+3. **Single-file strips the driver.** `PublishSingleFile` drops the loose
+   `node/<platform>` folder from the publish dir (the bundler swallows the native node
+   exe), but Playwright needs it on disk. The `RestorePlaywrightNodeDriver` target copies
+   it back next to the exe after publish, and re-adds the `+x` bit on a non-Windows host.
+
+Net: `win-x64` publish ships only `win32_x64`, `osx-arm64` ships only `darwin-arm64`, no
+cross-contamination. Verify a driver change by listing `publish/.playwright/node/` — it
+must contain exactly the target platform's folder plus `LICENSE`.
 
 ## Not ported (yet)
 

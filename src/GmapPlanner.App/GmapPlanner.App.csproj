@@ -14,6 +14,17 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!-- Pin Playwright's node driver to the TARGET rid. Left to itself, the targets fall
+         back to the build-host OS when the RID is set but they don't recognize it, so a
+         win-x64 driver could ride along in the osx-arm64 publish. Mapping each RID to its
+         platform keeps the bundle to the one driver that can actually run. With no RID
+         (a dev `dotnet run`) the property stays empty and the targets pick the host
+         driver, which is what a local run wants. -->
+    <PlaywrightPlatform Condition="'$(RuntimeIdentifier)' == 'osx-arm64'">osx-arm64</PlaywrightPlatform>
+    <PlaywrightPlatform Condition="'$(RuntimeIdentifier)' == 'win-x64'">win</PlaywrightPlatform>
+  </PropertyGroup>
+
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
@@ -47,4 +58,21 @@
   <ItemGroup>
     <ProjectReference Include="..\GmapPlanner.Core\GmapPlanner.Core.csproj" />
   </ItemGroup>
+
+  <!-- Single-file publish strips Playwright's node/<platform> driver from the loose
+       publish dir (it's a native exe the bundler swallows), but Playwright must exec it
+       as a real file on disk. The build output already holds the RID-correct driver
+       (via PlaywrightPlatform above), so copy it back next to the single-file exe after
+       publish. On a non-Windows build host, restore the +x bit the copy drops. -->
+  <Target Name="RestorePlaywrightNodeDriver" AfterTargets="Publish"
+          Condition="'$(PublishSingleFile)' == 'true' AND '$(RuntimeIdentifier)' != ''">
+    <ItemGroup>
+      <_PlaywrightNodeFiles Include="$(OutputPath).playwright\node\**" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_PlaywrightNodeFiles)"
+          DestinationFiles="@(_PlaywrightNodeFiles-&gt;'$(PublishDir).playwright\node\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Exec Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
+          Command="chmod +x &quot;$(PublishDir).playwright/node/&quot;*/node" />
+  </Target>
 </Project>
