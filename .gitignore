@@ -1,0 +1,22 @@
+# Secrets
+.env
+appsettings.local.json
+config.json
+credentials.json
+token.json
+storage_state.json
+*-sa.json
+service-account*.json
+
+# .NET build output
+bin/
+obj/
+publish/
+
+# Output
+output/
+
+# IDE
+.vs/
+.idea/
+*.user
