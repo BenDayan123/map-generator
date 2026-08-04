@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using GmapPlanner.Core;
 using GmapPlanner.Core.Services;
 using GmapPlanner.Core.Services.Gemini;
+using GmapPlanner.Core.Services.Publish;
 
 namespace GmapPlanner.App.ViewModels;
 
@@ -32,6 +33,26 @@ public partial class MainViewModel : ViewModelBase
     // --- Options (the Streamlit sidebar) ------------------------------------
     [ObservableProperty] private int _layersPerFile = AppConfig.MaxLayersPerFile;
     [ObservableProperty] private bool _skipGeocoding;
+
+    // --- Publish to My Maps -------------------------------------------------
+    [ObservableProperty] private bool _publishEnabled;
+    [ObservableProperty] private string _shareEmails = "";
+    [ObservableProperty] private int _shareRoleIndex; // 0 viewer, 1 commenter, 2 editor
+    [ObservableProperty] private bool _notifyShare = true;
+    [ObservableProperty] private bool _showBrowser;
+    [ObservableProperty] private string _loginStatus = "";
+    [ObservableProperty] private bool _isLoggingIn;
+
+    public string[] ShareRoles { get; } = ["viewer", "commenter", "editor"];
+
+    private string SelectedRole =>
+        ShareRoles[Math.Clamp(ShareRoleIndex, 0, ShareRoles.Length - 1)];
+
+    /// <summary>Recipients, de-duplicated, from the comma/newline separated box.</summary>
+    private List<string> Recipients => ShareEmails
+        .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
 
     // --- Run state ----------------------------------------------------------
     [ObservableProperty] private string _statusText = "";
@@ -143,6 +164,8 @@ public partial class MainViewModel : ViewModelBase
             foreach (var path in result.Files) ResultFiles.Add(KmlFileItem.FromPath(path));
             HasResult = true;
             StatusText = "";
+
+            if (PublishEnabled) await PublishAsync(result.Files, result.TripName);
         }
         catch (Exception e)
         {
@@ -152,6 +175,112 @@ public partial class MainViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Creates one My Maps map per KML file and shares it. Publishing failing must never
+    /// discard the KML files that were already written, so this reports into the file
+    /// rows and the error banner rather than throwing out of the run.
+    /// </summary>
+    private async Task PublishAsync(IReadOnlyList<string> files, string tripName)
+    {
+        var recipients = Recipients;
+        try
+        {
+            var maps = await PublishService.PublishKmlFilesAsync(
+                files,
+                tripName,
+                recipients,
+                role: SelectedRole,
+                headless: !ShowBrowser,
+                notify: NotifyShare,
+                progress: (step, frac) =>
+                {
+                    StatusText = step;
+                    Progress = frac;
+                });
+
+            var byFile = ResultFiles.ToDictionary(f => f.Path, StringComparer.OrdinalIgnoreCase);
+            foreach (var map in maps)
+            {
+                if (!byFile.TryGetValue(map.File, out var row)) continue;
+                row.MapError = map.Error;
+                if (map.Error.Length == 0)
+                {
+                    row.MapUrl = map.ViewUrl;
+                    row.SharedWith = map.SharedWith.Count > 0
+                        ? $"Shared with: {string.Join(", ", map.SharedWith)}"
+                        : "Not shared";
+                }
+            }
+
+            var ok = maps.Count(m => m.Error.Length == 0);
+            StatusText = "";
+            if (ok < maps.Count)
+                ErrorText = $"Published {ok}/{maps.Count} map(s) — see the per-file notes below.";
+        }
+        catch (Exception e)
+        {
+            // Auth/setup failure before the per-file loop: the KML files still exist.
+            StatusText = "";
+            ErrorText = $"Maps couldn't be published (the KML files were still created): {e.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task LogInToGoogleAsync()
+    {
+        IsLoggingIn = true;
+        LoginStatus = "Opening a browser window — sign in to Google, then return here…";
+        try
+        {
+            await MyMapsSession.LoginAsync();
+            LoginStatus = "✅ Signed in to Google. The session is saved for future runs.";
+        }
+        catch (Exception e)
+        {
+            LoginStatus = $"⚠️ Login failed: {e.Message}";
+        }
+        finally
+        {
+            IsLoggingIn = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task CheckLoginAsync()
+    {
+        IsLoggingIn = true;
+        LoginStatus = "Checking the saved Google session…";
+        try
+        {
+            await using var session = await MyMapsSession.StartAsync(headless: true);
+            LoginStatus = await session.IsLoggedInAsync()
+                ? "✅ Signed in to Google."
+                : "⚠️ Not signed in — click 'Log in to Google'.";
+        }
+        catch (Exception e)
+        {
+            LoginStatus = $"⚠️ Could not check the session: {e.Message}";
+        }
+        finally
+        {
+            IsLoggingIn = false;
+        }
+    }
+
+    [RelayCommand]
+    private void OpenMap(KmlFileItem? item)
+    {
+        if (item is null || !item.HasMap) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(item.MapUrl) { UseShellExecute = true });
+        }
+        catch
+        {
+            // Opening a browser is a nicety; never fail the run over it.
         }
     }
 

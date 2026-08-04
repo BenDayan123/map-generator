@@ -89,7 +89,38 @@
 
                     <TextBlock Classes="sideHeader" Text="Publish to My Maps" />
                     <TextBlock Classes="caption"
-                               Text="Creating and sharing live My Maps maps isn't in this version yet — import the KML files by hand for now." />
+                               Text="Creates a live Google My Maps map per file and shares it — drives a browser on this machine." />
+
+                    <ToggleSwitch Margin="0,8,0,0" IsChecked="{Binding PublishEnabled}"
+                                  OnContent="Create &amp; share maps" OffContent="Create &amp; share maps" />
+
+                    <StackPanel Spacing="8" IsVisible="{Binding PublishEnabled}">
+                        <Button Content="🔐 Log in to Google" HorizontalAlignment="Stretch"
+                                Command="{Binding LogInToGoogleCommand}" IsEnabled="{Binding !IsLoggingIn}" />
+                        <Button Content="Check status" HorizontalAlignment="Stretch"
+                                Command="{Binding CheckLoginCommand}" IsEnabled="{Binding !IsLoggingIn}" />
+                        <TextBlock Classes="caption" Text="{Binding LoginStatus}"
+                                   IsVisible="{Binding LoginStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                        <TextBlock Text="Share with (emails)" FontSize="13" Margin="0,4,0,0" />
+                        <TextBox Text="{Binding ShareEmails}" AcceptsReturn="True" Height="60"
+                                 Watermark="alice@example.com, bob@example.com" />
+                        <TextBlock Classes="caption"
+                                   Text="Comma or line separated. Leave empty to create the maps without sharing." />
+
+                        <TextBlock Text="Their access" FontSize="13" Margin="0,4,0,0" />
+                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ShareRoles}"
+                                  SelectedIndex="{Binding ShareRoleIndex}" />
+
+                        <ToggleSwitch IsChecked="{Binding NotifyShare}"
+                                      OnContent="Email people when shared" OffContent="Email people when shared" />
+                        <ToggleSwitch IsChecked="{Binding ShowBrowser}"
+                                      OnContent="Show the browser" OffContent="Show the browser" />
+                        <TextBlock Classes="caption"
+                                   Text="Headless by default. Turn on to watch or debug the automation." />
+                        <TextBlock Classes="caption"
+                                   Text="Sharing needs a Drive OAuth desktop client saved as credentials.json in the app data folder. Every map also gets download, print and copy turned off for viewers." />
+                    </StackPanel>
                 </StackPanel>
             </ScrollViewer>
         </Border>
@@ -181,17 +212,30 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:KmlFileItem">
                                     <Border Classes="card" Margin="0,0,0,8">
-                                        <StackPanel Spacing="2">
-                                            <TextBlock FontWeight="SemiBold">
-                                                <Run Text="🗺️" />
-                                                <Run Text="{Binding DayLabel}" />
-                                            </TextBlock>
-                                            <TextBlock Classes="caption">
-                                                <Run Text="{Binding FileName}" />
-                                                <Run Text="·" />
-                                                <Run Text="{Binding SizeText}" />
-                                            </TextBlock>
-                                        </StackPanel>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Grid.Column="0" Spacing="2">
+                                                <TextBlock FontWeight="SemiBold">
+                                                    <Run Text="🗺️" />
+                                                    <Run Text="{Binding DayLabel}" />
+                                                </TextBlock>
+                                                <TextBlock Classes="caption">
+                                                    <Run Text="{Binding FileName}" />
+                                                    <Run Text="·" />
+                                                    <Run Text="{Binding SizeText}" />
+                                                </TextBlock>
+                                                <TextBlock Classes="caption" Text="{Binding SharedWith}"
+                                                           IsVisible="{Binding SharedWith, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                                <TextBlock Classes="caption" Foreground="#EF5350" TextWrapping="Wrap"
+                                                           IsVisible="{Binding MapError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                    <Run Text="⚠️ Map not created:" />
+                                                    <Run Text="{Binding MapError}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Content="🌍 Open map" VerticalAlignment="Center"
+                                                    IsVisible="{Binding HasMap}"
+                                                    Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).OpenMapCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </Grid>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

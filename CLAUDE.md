@@ -8,10 +8,11 @@ A C#/.NET rewrite of [Google Map Planner](../Google%20Map%20Planner) (Python/Str
 targeting a small, self-contained cross-platform desktop app instead of a ~500MB
 PyInstaller/Streamlit bundle. Avalonia UI (MVVM), .NET 8 LTS, `win-x64` + `osx-arm64`.
 
-**Phase 1 (this codebase, done):** itinerary extraction (Gemini) -> geocoding -> KML
-generation, with a desktop UI to run it. **Phase 2 (not started):** Playwright-driven
-My Maps automation, Drive sharing, Sheets analytics — ported from `mymaps.py`,
-`drive_share.py`, `analytics.py` in the original repo when picked up.
+**Phase 1 (done):** itinerary extraction (Gemini) -> geocoding -> KML generation, with a
+desktop UI. **Phase 2 (done):** My Maps publishing (Playwright) and Drive sharing.
+**Not ported:** Sheets analytics (`analytics.py`), the in-app updater (`updater.py`), and
+the hosted/headless `GOOGLE_STORAGE_STATE` path — this is a desktop app with a real
+browser and an interactive login, and Google re-challenges replayed sessions anyway.
 
 ## Solution structure
 
@@ -27,6 +28,12 @@ src/
       GeocodingService.cs
       KmlBuilder.cs          # SharpKml.Core
       PipelineService.cs     # orchestrates extract -> geocode -> write KML
+      Publish/               # phase 2
+        MyMapsSession.cs     # Playwright automation of the My Maps editor
+        MyMapsSelectors.cs   # the selectors Google keeps breaking
+        MyMapsImport.cs      # the import retry, behind IImportSurface so it's testable
+        DriveShareService.cs # OAuth, permissions.create, copyRequiresWriterPermission
+        PublishService.cs    # one map per KML file, then share
     AppConfig.cs              # GEMINI_MODEL, MAX_LAYERS_PER_FILE, DAY_COLORS, ...
     AppDataPaths.cs           # per-OS app data dir (ports paths.py)
   GmapPlanner.App/            # Avalonia MVVM desktop app
@@ -115,11 +122,39 @@ take the process down instead of showing up in the error banner.
   per-OS data directory + `config.json`, trimmed to the two API keys and output dir
   this phase actually uses.
 
+## Publishing to My Maps (phase 2)
+
+- **`MyMapsSession`** — ports `mymaps.py`. My Maps has no create/import API, so the
+  editor UI is automated. The selectors in `MyMapsSelectors` are the fragile part;
+  the editor is always opened with `hl=en` so the English patterns hold. Keep the
+  hard-won guards if you touch this: the persistent Chromium profile (one-time headed
+  login), the real Chrome/Edge channel with `--enable-automation` dropped (Google
+  blocks sign-in otherwise), preferring the Picker's own frames when setting the file
+  input (a wrong input imports nothing and silently leaves the map empty), nudging the
+  Picker's "Upload" tab on 2nd+ imports, treating the "action was reverted" toast as an
+  immediate abort plus editor reload, `MapGapSeconds` between maps, verifying the import
+  by waiting for the KML's first placemark to render, and renaming via the *current* name
+  read from the tab title rather than the literal "Untitled map" (importing a KML makes
+  My Maps rename the map after the file, so that text is usually already gone).
+- **`MyMapsImport`** — the click → set-file → dialog-closes retry, extracted behind
+  `IImportSurface` purely so it can be tested without a browser. This is the path that
+  made publishing flaky, so it has real tests; keep them passing.
+- **`DriveShareService`** — ports `drive_share.py`. A My Maps map is a Drive file, so
+  sharing goes through `permissions.create` rather than the brittle share dialog.
+  `RestrictDownloadAsync` sets `copyRequiresWriterPermission`, which is the API form of
+  Share → gear → "Commenters and viewers" under *download, print, and copy*; it is
+  applied to every created map and is best-effort, so a failure never loses a map.
+  Needs an OAuth **Desktop** client saved as `credentials.json` in the app data dir;
+  the token is cached beside it. Drive auth runs up front so a bad setup fails before
+  the browser work — but with no recipients it stays optional.
+
+The browser is deliberately **not** bundled (that's what keeps the download reasonable);
+Playwright fetches Chromium on first publish. Playwright's own node driver *is* bundled
+and costs ~100MB — the app is ~144MB because of it. Swapping to PuppeteerSharp would
+bring it back to ~48MB at the cost of reimplementing the role/text selector helpers.
+
 ## Not ported (yet)
 
-Streamlit UI (`streamlit_app.py`, `pages/`), the pywebview desktop wrapper
-(Avalonia *is* the native wrapper), Playwright My Maps automation, Drive sharing,
-Sheets analytics, the in-app updater. Pick these up from the original repo's
-`gmap_planner/mymaps.py`, `drive_share.py`, `analytics.py`, `updater.py` when Phase 2
-starts — each should get its own design pass (Playwright automation especially:
-its browser dependency doesn't shrink no matter the host language).
+Streamlit UI (`streamlit_app.py`, `pages/`) and the pywebview desktop wrapper — Avalonia
+*is* the native wrapper, so neither has an equivalent here. Still open from the original
+repo: Sheets analytics (`analytics.py`) and the in-app updater (`updater.py`).

@@ -19,10 +19,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- SharpKml serializes via reflection over its own DOM types, so the trimmer
-         can silently strip members the KML writer needs. Keep the assembly whole —
-         it's a few hundred KB against a broken KML file. -->
+    <!-- All of these serialize or bind via reflection, so the trimmer can silently
+         strip members they need at runtime — a failure that never shows up in a
+         Debug run. Keeping the assemblies whole costs a few MB against a broken
+         KML file, a dead Drive call, or a browser session that won't start. -->
     <TrimmerRootAssembly Include="SharpKml.Core" />
+    <TrimmerRootAssembly Include="Google.Apis" />
+    <TrimmerRootAssembly Include="Google.Apis.Core" />
+    <TrimmerRootAssembly Include="Google.Apis.Auth" />
+    <TrimmerRootAssembly Include="Google.Apis.Drive.v3" />
+    <TrimmerRootAssembly Include="Newtonsoft.Json" />
+    <TrimmerRootAssembly Include="Microsoft.Playwright" />
   </ItemGroup>
 
   <ItemGroup>
