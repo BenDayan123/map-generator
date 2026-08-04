@@ -11,7 +11,9 @@ service-account*.json
 # .NET build output
 bin/
 obj/
-publish/
+# Anchored: an unanchored "publish/" also matches source folders like
+# src/GmapPlanner.Core/Services/Publish/.
+/publish/
 
 # Output
 output/
