@@ -19,6 +19,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- SharpKml serializes via reflection over its own DOM types, so the trimmer
+         can silently strip members the KML writer needs. Keep the assembly whole —
+         it's a few hundred KB against a broken KML file. -->
+    <TrimmerRootAssembly Include="SharpKml.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.5" />
     <PackageReference Include="Avalonia.Desktop" Version="11.2.5" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.5" />

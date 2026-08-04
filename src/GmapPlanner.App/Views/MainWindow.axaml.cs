@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using GmapPlanner.App.ViewModels;
 
@@ -9,8 +10,39 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        BrowseInputButton.Click += async (_, _) => await BrowseInputFileAsync();
-        BrowseOutputButton.Click += async (_, _) => await BrowseOutputFolderAsync();
+
+        BrowseInputButton.Click += async (_, _) => await SafeAsync(BrowseInputFileAsync);
+        BrowseOutputButton.Click += async (_, _) => await SafeAsync(BrowseOutputFolderAsync);
+
+        DragDrop.SetAllowDrop(DropZone, true);
+        DropZone.AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        DropZone.AddHandler(DragDrop.DropEvent, OnDrop);
+    }
+
+    /// <summary>
+    /// Click handlers are async void, so anything thrown inside one takes the whole
+    /// process down instead of surfacing. Show it on the page instead.
+    /// </summary>
+    private async Task SafeAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception e) when (DataContext is MainViewModel vm)
+        {
+            vm.ErrorText = e.Message;
+        }
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e) =>
+        e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None;
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm) return;
+        var path = e.Data.GetFiles()?.FirstOrDefault()?.TryGetLocalPath();
+        if (path is not null) vm.SetInputFile(path);
     }
 
     private async Task BrowseInputFileAsync()
@@ -27,7 +59,7 @@ public partial class MainWindow : Window
             ],
         });
         var path = files.FirstOrDefault()?.TryGetLocalPath();
-        if (path is not null) vm.InputFilePath = path;
+        if (path is not null) vm.SetInputFile(path);
     }
 
     private async Task BrowseOutputFolderAsync()

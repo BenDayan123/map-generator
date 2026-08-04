@@ -3,46 +3,247 @@
         xmlns:vm="using:GmapPlanner.App.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="640" d:DesignHeight="440"
+        mc:Ignorable="d" d:DesignWidth="1020" d:DesignHeight="720"
         x:Class="GmapPlanner.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
+        x:CompileBindings="True"
         Icon="/Assets/avalonia-logo.ico"
-        Width="640" Height="440"
-        Title="Trip Map Maker">
+        Width="1020" Height="720" MinWidth="900" MinHeight="620"
+        Title="My Maps Generator">
 
     <Design.DataContext>
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" ColumnDefinitions="Auto,*,Auto">
+    <Window.Styles>
+        <Style Selector="TextBlock.h1">
+            <Setter Property="FontSize" Value="28" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style Selector="TextBlock.caption">
+            <Setter Property="Opacity" Value="0.65" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="TextBlock.sideHeader">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+        <Style Selector="TextBlock.metricLabel">
+            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="TextBlock.metricValue">
+            <Setter Property="FontSize" Value="26" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <!-- Sidebar nav entries: flat, full width, left aligned -->
+        <Style Selector="Button.nav">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="BorderBrush" Value="#33808080" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+    </Window.Styles>
 
-        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,0,0,12"
-                    Text="Trip Map Maker" FontSize="20" FontWeight="Bold" />
+    <Grid ColumnDefinitions="280,*">
 
-        <TextBlock Grid.Row="1" Grid.Column="0" Text="Itinerary file" VerticalAlignment="Center" Margin="0,0,8,8" />
-        <TextBox Grid.Row="1" Grid.Column="1" Margin="0,0,8,8" IsReadOnly="True" Text="{Binding InputFilePath}" />
-        <Button Grid.Row="1" Grid.Column="2" Margin="0,0,0,8" Content="Browse…" Name="BrowseInputButton" />
+        <!-- ============================ SIDEBAR ============================ -->
+        <Border Grid.Column="0" Background="#14808080" Padding="16">
+            <ScrollViewer>
+                <StackPanel Spacing="6">
+                    <TextBlock Text="🗺️ My Maps Generator" FontWeight="Bold" FontSize="16" Margin="0,0,0,12" />
 
-        <TextBlock Grid.Row="2" Grid.Column="0" Text="Gemini API key" VerticalAlignment="Center" Margin="0,0,8,8" />
-        <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,8" PasswordChar="•"
-                    Text="{Binding GoogleApiKey}" />
+                    <Button Classes="nav" Content="🗺️  Make Map" Command="{Binding ShowMakeMapCommand}" />
+                    <Button Classes="nav" Content="⚙️  Settings" Command="{Binding ShowSettingsCommand}" />
 
-        <TextBlock Grid.Row="3" Grid.Column="0" Text="Geocoding API key" VerticalAlignment="Center" Margin="0,0,8,8" />
-        <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,8" PasswordChar="•"
-                    Text="{Binding GeoApiKey}" />
+                    <Separator Margin="0,12" />
 
-        <TextBlock Grid.Row="4" Grid.Column="0" Text="Output folder" VerticalAlignment="Center" Margin="0,0,8,8" />
-        <TextBox Grid.Row="4" Grid.Column="1" Margin="0,0,8,8" IsReadOnly="True" Text="{Binding OutputDir}" />
-        <Button Grid.Row="4" Grid.Column="2" Margin="0,0,0,8" Content="Browse…" Name="BrowseOutputButton" />
+                    <TextBlock Classes="sideHeader" Text="Options" />
 
-        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal"
-                     Spacing="12" Margin="0,4,0,12">
-            <Button Content="Generate KML" Command="{Binding RunCommand}" IsEnabled="{Binding !IsBusy}" />
-            <ProgressBar Width="300" Minimum="0" Maximum="1" Value="{Binding Progress}" IsIndeterminate="{Binding IsBusy}" />
-        </StackPanel>
+                    <TextBlock Text="Days per KML file" FontSize="13" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Slider Grid.Column="0" Minimum="1" Maximum="{Binding MaxLayersPerFile}"
+                                TickFrequency="1" IsSnapToTickEnabled="True"
+                                Value="{Binding LayersPerFile}" />
+                        <TextBlock Grid.Column="1" Text="{Binding LayersPerFile}" VerticalAlignment="Center"
+                                   Margin="8,0,0,0" FontWeight="SemiBold" />
+                    </Grid>
+                    <TextBlock Classes="caption"
+                               Text="Google My Maps allows at most 10 layers (days) per map." />
 
-        <TextBlock Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="3" Text="{Binding StatusText}"
-                    TextWrapping="Wrap" VerticalAlignment="Top" />
+                    <ToggleSwitch Margin="0,10,0,0" IsChecked="{Binding SkipGeocoding}"
+                                  OnContent="Skip geocoding" OffContent="Skip geocoding" />
+                    <TextBlock Classes="caption"
+                               Text="Use Gemini's approximate coordinates instead of snapping each place to its exact Google Maps point. Faster, less accurate pins." />
+
+                    <Separator Margin="0,12" />
+
+                    <TextBlock Classes="sideHeader" Text="Publish to My Maps" />
+                    <TextBlock Classes="caption"
+                               Text="Creating and sharing live My Maps maps isn't in this version yet — import the KML files by hand for now." />
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ============================== MAIN ============================== -->
+        <ScrollViewer Grid.Column="1">
+            <Grid Margin="32,28">
+
+                <!-- ======================== MAKE MAP ======================== -->
+                <StackPanel Spacing="16" IsVisible="{Binding IsMakeMapPage}">
+                    <TextBlock Classes="h1" Text="🗺️ My Maps Generator" />
+                    <TextBlock Classes="caption"
+                               Text="Upload a travel itinerary (PDF or TXT) and get Google My Maps KML files — each day a colored layer with numbered pins." />
+
+                    <!-- Drop zone -->
+                    <Border Name="DropZone" Classes="card" MinHeight="130"
+                            BorderThickness="2" Background="#0A808080">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+                            <TextBlock Text="📄" FontSize="30" HorizontalAlignment="Center" />
+                            <TextBlock Text="Drag &amp; drop your itinerary here"
+                                       HorizontalAlignment="Center" FontWeight="SemiBold" />
+                            <TextBlock Classes="caption" HorizontalAlignment="Center"
+                                       Text="One PDF or TXT file at a time, up to 15 MB." />
+                            <Button Name="BrowseInputButton" Content="Browse files"
+                                    HorizontalAlignment="Center" Margin="0,4,0,0" />
+                            <TextBlock Text="{Binding InputFileName}" HorizontalAlignment="Center"
+                                       FontWeight="SemiBold" Foreground="#388E3C"
+                                       IsVisible="{Binding InputFileName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Button Content="Generate map files" Classes="accent"
+                            Command="{Binding GenerateCommand}" HorizontalAlignment="Left"
+                            Padding="18,10" FontWeight="SemiBold" />
+
+                    <!-- Progress -->
+                    <Border Classes="card" IsVisible="{Binding IsBusy}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" />
+                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Error -->
+                    <Border Classes="card" BorderBrush="#D32F2F" Background="#18D32F2F"
+                            IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" Foreground="#EF5350" />
+                    </Border>
+
+                    <!-- Results -->
+                    <StackPanel Spacing="16" IsVisible="{Binding HasResult}">
+                        <Border Classes="card" BorderBrush="#388E3C" Background="#18388E3C">
+                            <TextBlock TextWrapping="Wrap">
+                                <Run Text="✅ Created" />
+                                <Run Text="{Binding ResultFiles.Count}" FontWeight="Bold" />
+                                <Run Text="KML file(s) for" />
+                                <Run Text="{Binding ResultTripName}" FontWeight="Bold" />
+                            </TextBlock>
+                        </Border>
+
+                        <Grid ColumnDefinitions="*,*,*" Margin="0,0,0,4">
+                            <Border Grid.Column="0" Classes="card" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Classes="metricLabel" Text="Days" />
+                                    <TextBlock Classes="metricValue" Text="{Binding ResultDays}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Classes="card" Margin="4,0">
+                                <StackPanel>
+                                    <TextBlock Classes="metricLabel" Text="Locations" />
+                                    <TextBlock Classes="metricValue" Text="{Binding ResultLocations}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Classes="card" Margin="8,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Classes="metricLabel" Text="Exact coords" />
+                                    <TextBlock Classes="metricValue" Text="{Binding ResultExactCoords}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <TextBlock Text="Files" FontSize="18" FontWeight="SemiBold" />
+                        <TextBlock Classes="caption" Text="{Binding ResultOutputDir}" />
+                        <Button Content="📂 Open output folder" Classes="accent"
+                                Command="{Binding OpenOutputFolderCommand}"
+                                HorizontalAlignment="Stretch" Padding="14,10" />
+
+                        <ItemsControl ItemsSource="{Binding ResultFiles}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:KmlFileItem">
+                                    <Border Classes="card" Margin="0,0,0,8">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock FontWeight="SemiBold">
+                                                <Run Text="🗺️" />
+                                                <Run Text="{Binding DayLabel}" />
+                                            </TextBlock>
+                                            <TextBlock Classes="caption">
+                                                <Run Text="{Binding FileName}" />
+                                                <Run Text="·" />
+                                                <Run Text="{Binding SizeText}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Expander Header="How to import into Google My Maps">
+                            <TextBlock TextWrapping="Wrap" Margin="0,6" LineHeight="22"
+                                       Text="1. Open Google My Maps (google.com/mymaps) → Create a new map.&#10;2. Click Import under a layer and upload one KML file.&#10;3. Each KML adds up to 10 day-layers. For longer trips, import each file into its own layer/map." />
+                        </Expander>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- ======================== SETTINGS ======================== -->
+                <StackPanel Spacing="16" IsVisible="{Binding IsSettingsPage}">
+                    <TextBlock Classes="h1" Text="⚙️ Settings" />
+                    <TextBlock Classes="caption"
+                               Text="Saved on this computer, so you only enter them once." />
+
+                    <Border Classes="card">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Gemini API key" FontWeight="SemiBold" />
+                            <TextBlock Classes="caption"
+                                       Text="Used to read the itinerary and extract every place per day." />
+                            <TextBox PasswordChar="•" Text="{Binding GoogleApiKey}"
+                                     Watermark="AIza…" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="card">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Geocoding API key" FontWeight="SemiBold" />
+                            <TextBlock Classes="caption"
+                                       Text="Snaps each place name to its exact Google Maps coordinates. Without it, Gemini's rougher coordinates are used." />
+                            <TextBox PasswordChar="•" Text="{Binding GeoApiKey}"
+                                     Watermark="AIza…" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="card">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Output folder" FontWeight="SemiBold" />
+                            <TextBlock Classes="caption"
+                                       Text="Each trip's KML files are written to a subfolder named after the trip." />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBox Grid.Column="0" IsReadOnly="True" Text="{Binding OutputDir}" />
+                                <Button Grid.Column="1" Name="BrowseOutputButton" Content="Browse…"
+                                        Margin="8,0,0,0" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
     </Grid>
-
 </Window>

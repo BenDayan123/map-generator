@@ -55,10 +55,45 @@ dotnet publish src/GmapPlanner.App -c Release -r osx-arm64
 ```
 
 `GmapPlanner.App.csproj` sets `PublishSingleFile`, `SelfContained`, `PublishTrimmed`
-(`TrimMode=partial` — full trim mode is worth revisiting once Phase 2 adds
-`Google.Apis`/Playwright, which are reflection-heavy and may need explicit trimmer
-root exceptions). `InvariantGlobalization` is on for size; revisit if Hebrew text
+(`TrimMode=partial`). `InvariantGlobalization` is on for size; revisit if Hebrew text
 sorting/formatting (not rendering — that's unaffected) ever needs real culture data.
+
+## Trimming rules — read before adding reflection-based code
+
+Trimming is not just a publish-time size knob here; it changes runtime behaviour, and
+it already caused one crash (picking an output folder killed the whole app).
+
+1. **Never call reflection-based `System.Text.Json` APIs.** `PublishTrimmed` sets the
+   `JsonSerializerIsReflectionEnabledByDefault=false` feature switch, which lands in
+   **every** build, Debug included — so `JsonSerializer.Serialize(obj)`,
+   `ReadFromJsonAsync<T>()`, `JsonContent.Create(new { … })` all throw
+   `InvalidOperationException` at runtime. Add the type to
+   `Core/Json/GmapPlannerJsonContext.cs` and pass its `JsonTypeInfo` instead.
+   The test project turns the same switch off, so a reflection-based call fails
+   `dotnet test` rather than reaching a user.
+2. **Keep XAML bindings compiled.** `MainWindow.axaml` sets `x:CompileBindings="True"`
+   with `x:DataType`. Reflection bindings survive a Debug run and can break only once
+   trimmed — exactly the failure mode that is hardest to notice.
+3. **Reflection-heavy dependencies need a trimmer root.** `SharpKml.Core` serializes
+   via reflection over its own DOM, so it is listed as a `TrimmerRootAssembly`. Do the
+   same for `Google.Apis`/Playwright in Phase 2.
+4. **Verify against the published exe, not just `dotnet run`.** A clean publish should
+   emit no `IL2026` warnings from our own code; the ones left are Avalonia's designer
+   and remote-protocol assemblies, which aren't used at runtime.
+
+## UI
+
+`MainWindow.axaml` mirrors the original Streamlit app: a left sidebar (nav, Options —
+days-per-KML slider and skip-geocoding toggle) and a main pane with the drag & drop
+itinerary zone, "Generate map files", progress, an error banner, and the results block
+(success line, Days / Locations / Exact coords metric cards, per-file cards, and the
+import instructions). A second "page" holds the API keys and output folder; the two
+pages are `IsVisible` toggles on `IsMakeMapPage`/`IsSettingsPage`, not a nav framework.
+
+Everything is MVVM except the file/folder pickers and drag & drop, which need the
+`TopLevel`'s `StorageProvider` and so live in `MainWindow.axaml.cs`. Those handlers are
+`async void`, so they route through `SafeAsync` — an exception in one would otherwise
+take the process down instead of showing up in the error banner.
 
 ## Key ports from the Python original
 
