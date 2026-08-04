@@ -26,4 +26,12 @@
     <ProjectReference Include="..\..\src\GmapPlanner.Core\GmapPlanner.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The app publishes trimmed, which turns this switch off. Match it here so any
+         reflection-based JsonSerializer call fails the tests instead of the user's app. -->
+    <RuntimeHostConfigurationOption
+        Include="System.Text.Json.JsonSerializer.IsReflectionEnabledByDefault"
+        Value="false" Trim="true" />
+  </ItemGroup>
+
 </Project>

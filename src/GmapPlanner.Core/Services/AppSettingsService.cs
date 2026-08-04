@@ -1,4 +1,5 @@
 using System.Text.Json;
+using GmapPlanner.Core.Json;
 
 namespace GmapPlanner.Core.Services;
 
@@ -19,7 +20,7 @@ public static class AppSettingsService
         try
         {
             var json = File.ReadAllText(ConfigPath);
-            return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+            return JsonSerializer.Deserialize(json, GmapPlannerJsonContext.Default.AppSettings) ?? new AppSettings();
         }
         catch
         {
@@ -29,7 +30,7 @@ public static class AppSettingsService
 
     public static void Save(AppSettings settings)
     {
-        var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(settings, GmapPlannerJsonContext.Default.AppSettings);
         File.WriteAllText(ConfigPath, json);
     }
 }

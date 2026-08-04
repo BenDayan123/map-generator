@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using GmapPlanner.Core.Errors;
+using GmapPlanner.Core.Json;
 using GmapPlanner.Core.Models;
 
 namespace GmapPlanner.Core.Services;
@@ -27,7 +28,7 @@ public class GeocodingService(HttpClient http, string apiKey)
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(15));
-            payload = await http.GetFromJsonAsync<GeocodeResponseDto>(url, cts.Token);
+            payload = await http.GetFromJsonAsync(url, GmapPlannerJsonContext.Default.GeocodeResponseDto, cts.Token);
         }
         catch (Exception e)
         {

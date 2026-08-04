@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using GmapPlanner.Core.Errors;
+using GmapPlanner.Core.Json;
 using GmapPlanner.Core.Models;
 
 namespace GmapPlanner.Core.Services.Gemini;
@@ -143,7 +144,8 @@ public class GeminiExtractionService(HttpClient http, string apiKey)
                 $"Gemini API (location extraction) request failed: HTTP {(int)response.StatusCode} {response.ReasonPhrase}");
         }
 
-        var envelope = await response.Content.ReadFromJsonAsync<GenerateContentResponse>(cancellationToken: ct);
+        var envelope = await response.Content.ReadFromJsonAsync(
+            GmapPlannerJsonContext.Default.GenerateContentResponse, ct);
         var candidate = envelope?.Candidates?.FirstOrDefault();
         var text = candidate?.Content?.Parts?.FirstOrDefault()?.Text;
         var finishReason = candidate?.FinishReason ?? "unknown";
@@ -153,7 +155,7 @@ public class GeminiExtractionService(HttpClient http, string apiKey)
         {
             try
             {
-                result = JsonSerializer.Deserialize<ExtractionResultDto>(text);
+                result = JsonSerializer.Deserialize(text, GmapPlannerJsonContext.Default.ExtractionResultDto);
             }
             catch (JsonException)
             {
@@ -204,9 +206,13 @@ public class GeminiExtractionService(HttpClient http, string apiKey)
             throw new PipelineException($"Gemini Files API failed to upload '{displayName}': {e.Message}", e);
         }
 
+        var metadata = new JsonObject
+        {
+            ["file"] = new JsonObject { ["display_name"] = displayName },
+        }.ToJsonString();
         using var startRequest = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/upload/v1beta/files?key={apiKey}")
         {
-            Content = JsonContent.Create(new { file = new { display_name = displayName } }),
+            Content = new StringContent(metadata, Encoding.UTF8, "application/json"),
         };
         startRequest.Headers.Add("X-Goog-Upload-Protocol", "resumable");
         startRequest.Headers.Add("X-Goog-Upload-Command", "start");
@@ -254,7 +260,8 @@ public class GeminiExtractionService(HttpClient http, string apiKey)
                 $"Gemini Files API failed to upload '{displayName}': HTTP {(int)uploadResponse.StatusCode} {uploadResponse.ReasonPhrase}");
         }
 
-        var envelope = await uploadResponse.Content.ReadFromJsonAsync<UploadFileEnvelope>(cancellationToken: ct);
+        var envelope = await uploadResponse.Content.ReadFromJsonAsync(
+            GmapPlannerJsonContext.Default.UploadFileEnvelope, ct);
         var file = envelope?.File
             ?? throw new PipelineException($"Gemini Files API returned no file info for '{displayName}'.");
 
@@ -277,7 +284,7 @@ public class GeminiExtractionService(HttpClient http, string apiKey)
     {
         var response = await http.GetAsync($"{BaseUrl}/v1beta/{name}?key={apiKey}", ct);
         response.EnsureSuccessStatusCode();
-        var file = await response.Content.ReadFromJsonAsync<UploadedFile>(cancellationToken: ct);
+        var file = await response.Content.ReadFromJsonAsync(GmapPlannerJsonContext.Default.UploadedFile, ct);
         return file ?? throw new PipelineException($"Gemini Files API returned no status for '{name}'.");
     }
 }
