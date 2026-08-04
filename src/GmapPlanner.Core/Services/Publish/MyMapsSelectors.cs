@@ -26,11 +26,18 @@ public static partial class MyMapsSelectors
     public static readonly Regex PickerSelect = new(@"^\s*(select|open)\s*$", RegexOptions.IgnoreCase);
 
     /// <summary>
+    /// The 'Browse' button in the newer 'Choose a file to import' dialog. It only wires up
+    /// an input[type=file] when clicked, so we catch the file chooser it opens.
+    /// </summary>
+    public static readonly Regex Browse = new(@"^\s*browse\s*$", RegexOptions.IgnoreCase);
+
+    /// <summary>
     /// Text the Picker's upload pane shows while it waits for a file — i.e. "the drag
     /// and drop dialog is still open".
     /// </summary>
     public static readonly Regex PickerOpen =
-        new("drag (and drop|files here)|select a file from your", RegexOptions.IgnoreCase);
+        new("drag (and drop|files here)|select a file from your|choose a file to import",
+            RegexOptions.IgnoreCase);
 
     /// <summary>
     /// My Maps' red toast when it refuses a save/import — usually because the editor's

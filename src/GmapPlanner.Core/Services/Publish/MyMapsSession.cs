@@ -224,12 +224,24 @@ public sealed class MyMapsSession : IAsyncDisposable
         }).ToList();
 
     /// <summary>
-    /// Finds the (often hidden) input[type=file] in the Picker and sets the KML.
-    ///
-    /// Setting the file input directly is far more robust than clicking the Picker's
-    /// "Browse" button, which lives in a cross-origin iframe. On 2nd+ imports the Picker
-    /// opens on the Drive/Recent tab, where the file input doesn't exist, so the "Upload"
-    /// tab is nudged every loop.
+    /// Every frame, Picker frames first. The current My Maps 'Choose a file to import'
+    /// dialog renders its Upload pane in the main document — outside the classic
+    /// picker/docs iframes — so gating the search to Picker frames never finds it. We
+    /// still try Picker frames first so the KML lands on the right input when the classic
+    /// Picker is the one on screen.
+    /// </summary>
+    private static IEnumerable<IFrame> OrderedFrames(IPage page)
+    {
+        var picker = PickerFrames(page);
+        return picker.Concat(page.Frames.Where(f => !picker.Contains(f)));
+    }
+
+    /// <summary>
+    /// Sets the KML into the import dialog. Two shapes exist and Google flips between them:
+    /// the classic Picker (a hidden input[type=file] we set directly), and the newer
+    /// 'Choose a file to import' dialog that wires up its input only when 'Browse' is
+    /// clicked (so we catch the resulting file chooser). Either way the dialog can open on
+    /// the Drive/Recent tab on 2nd+ imports, so the 'Upload' tab is nudged every loop.
     /// </summary>
     private async Task<bool> SetKmlOnAnyFrameAsync(IPage page, string kmlPath, int timeoutMs = 30000)
     {
@@ -237,9 +249,7 @@ public sealed class MyMapsSession : IAsyncDisposable
         var loggedTab = false;
         while (DateTime.UtcNow < deadline)
         {
-            var pickerFrames = PickerFrames(page);
-            var candidates = pickerFrames.Count > 0 ? pickerFrames : page.Frames.ToList();
-            foreach (var frame in candidates)
+            foreach (var frame in OrderedFrames(page))
             {
                 try
                 {
@@ -257,7 +267,15 @@ public sealed class MyMapsSession : IAsyncDisposable
                 }
             }
 
-            foreach (var frame in PickerFrames(page))
+            // No pre-existing input: the newer dialog only creates it on 'Browse'. Click
+            // Browse and set the KML on the file chooser it opens.
+            if (await TryBrowseFileChooserAsync(page, kmlPath))
+            {
+                await ConfirmPickerSelectionAsync(page);
+                return true;
+            }
+
+            foreach (var frame in OrderedFrames(page))
             {
                 try
                 {
@@ -266,7 +284,7 @@ public sealed class MyMapsSession : IAsyncDisposable
                     {
                         if (!loggedTab)
                         {
-                            Log("clicking the Picker 'Upload' tab");
+                            Log("clicking the import dialog's 'Upload' tab");
                             loggedTab = true;
                         }
                         await tab.ClickAsync(new() { Timeout = 1500 });
@@ -285,20 +303,56 @@ public sealed class MyMapsSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Clicks the Picker's "Select" button once the upload finishes. The current Google
-    /// Picker no longer imports on file-set — it uploads, then waits on this button, so a
-    /// run that only set the file input hangs on the drive-import overlay. Best-effort:
-    /// older Pickers auto-close (the frame disappears) and never show the button, so this
-    /// returns as soon as the Picker frames are gone.
+    /// Clicks the import dialog's 'Browse' button and sets the KML on the file chooser it
+    /// opens. The newer 'Choose a file to import' dialog exposes no input[type=file] to
+    /// set directly, so this is the only way in. Best-effort and short: returns false if
+    /// no visible Browse button opens a chooser, so the caller keeps polling.
+    /// </summary>
+    private async Task<bool> TryBrowseFileChooserAsync(IPage page, string kmlPath)
+    {
+        foreach (var frame in OrderedFrames(page))
+        {
+            ILocator browse;
+            try
+            {
+                browse = frame.GetByRole(AriaRole.Button, new() { NameRegex = MyMapsSelectors.Browse }).First;
+                if (await browse.CountAsync() == 0 || !await browse.IsVisibleAsync()) continue;
+            }
+            catch
+            {
+                continue;
+            }
+
+            try
+            {
+                var chooser = await page.RunAndWaitForFileChooserAsync(
+                    async () => await browse.ClickAsync(new() { Timeout = 2000 }),
+                    new() { Timeout = 4000 });
+                await chooser.SetFilesAsync(kmlPath);
+                Log("set the KML via the 'Browse' file chooser");
+                return true;
+            }
+            catch
+            {
+                // That button didn't open a chooser — try the next frame / next poll.
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Clicks the import dialog's "Select" button once the upload finishes. Some Picker
+    /// variants no longer import on file-set — they upload, then wait on this button, so a
+    /// run that only set the file hangs on the overlay. Best-effort: returns the moment
+    /// the dialog is gone, so a variant that auto-imports adds no delay.
     /// </summary>
     private async Task ConfirmPickerSelectionAsync(IPage page, int timeoutMs = 15000)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (DateTime.UtcNow < deadline)
         {
-            var frames = PickerFrames(page);
-            if (frames.Count == 0) return; // Picker closed on its own (old auto-import path).
-            foreach (var frame in frames)
+            if (!await PickerOpenAsync(page)) return; // dialog closed / import already fired
+            foreach (var frame in OrderedFrames(page))
             {
                 var getters = new Func<ILocator>[]
                 {
@@ -312,7 +366,7 @@ public sealed class MyMapsSession : IAsyncDisposable
                         var el = getter().First;
                         if (await el.IsVisibleAsync() && await el.IsEnabledAsync())
                         {
-                            Log("clicking the Picker 'Select' button");
+                            Log("clicking the import dialog's 'Select' button");
                             await el.ClickAsync(new() { Timeout = 2000 });
                             return;
                         }
@@ -327,10 +381,10 @@ public sealed class MyMapsSession : IAsyncDisposable
         }
     }
 
-    /// <summary>Is the Picker's upload dialog still on screen (waiting for a file)?</summary>
+    /// <summary>Is the import dialog still on screen (waiting for a file)?</summary>
     private static async Task<bool> PickerOpenAsync(IPage page)
     {
-        foreach (var frame in PickerFrames(page))
+        foreach (var frame in OrderedFrames(page))
         {
             try
             {
