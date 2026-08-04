@@ -36,8 +36,7 @@ public static partial class MyMapsSelectors
     /// and drop dialog is still open".
     /// </summary>
     public static readonly Regex PickerOpen =
-        new("drag (and drop|files here)|select a file from your|choose a file to import",
-            RegexOptions.IgnoreCase);
+        new("drag (and drop|files here)|select a file from your", RegexOptions.IgnoreCase);
 
     /// <summary>
     /// My Maps' red toast when it refuses a save/import — usually because the editor's

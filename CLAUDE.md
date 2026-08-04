@@ -152,6 +152,14 @@ take the process down instead of showing up in the error banner.
   by waiting for the KML's first placemark to render, and renaming via the *current* name
   read from the tab title rather than the literal "Untitled map" (importing a KML makes
   My Maps rename the map after the file, so that text is usually already gone).
+  The import dialog is the classic Google Picker (`docs.google.com/picker`, title
+  "Choose a file to import"): it opens on the **My Drive** tab, and the `<input type=file>`
+  only appears after the **Upload** tab is clicked — inside a nested "scotty" upload iframe
+  whose URL is *not* docs/drive/picker. So the file search must scan **every** frame, not
+  just Picker frames (`OrderedFrames`), or the input is never found and the run hangs on
+  the overlay. And `PickerOpen` (the "still waiting for a file" signal) must match only the
+  Upload pane's transient "drag and drop" text — never the picker's persistent
+  "Choose a file to import" title, or the dialog looks open forever and every import fails.
 - **`MyMapsImport`** — the click → set-file → dialog-closes retry, extracted behind
   `IImportSurface` purely so it can be tested without a browser. This is the path that
   made publishing flaky, so it has real tests; keep them passing.
