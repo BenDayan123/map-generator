@@ -160,6 +160,10 @@ take the process down instead of showing up in the error banner.
   the overlay. And `PickerOpen` (the "still waiting for a file" signal) must match only the
   Upload pane's transient "drag and drop" text — never the picker's persistent
   "Choose a file to import" title, or the dialog looks open forever and every import fails.
+  One more Picker variant imports the file but **never auto-closes** — it resets to the
+  drag view and lingers. So success is *not* "the dialog closed": `WaitForPickerClose` also
+  succeeds when the KML's first placemark has rendered in the editor (`IsImportedAsync`),
+  and the lingering Picker is then dismissed with Escape so it doesn't block the rename.
 - **`MyMapsImport`** — the click → set-file → dialog-closes retry, extracted behind
   `IImportSurface` purely so it can be tested without a browser. This is the path that
   made publishing flaky, so it has real tests; keep them passing.

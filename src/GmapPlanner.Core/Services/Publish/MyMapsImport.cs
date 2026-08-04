@@ -14,6 +14,14 @@ internal interface IImportSurface
 
     Task<bool> IsPickerOpenAsync();
     Task<bool> IsRevertedAsync();
+
+    /// <summary>
+    /// Has the KML's content actually landed in the editor (first placemark rendered)?
+    /// Some Picker variants import the file but never auto-close — they reset to the drag
+    /// view and linger — so a closed dialog is not a reliable success signal on its own.
+    /// </summary>
+    Task<bool> IsImportedAsync();
+
     Task PressEscapeAsync();
 
     /// <summary>Does the URL already carry a mid (i.e. the map exists and was saved)?</summary>
@@ -47,9 +55,12 @@ internal static class MyMapsImport
     }
 
     /// <summary>
-    /// Waits for the upload dialog to go away after the file was set. Returns early when
-    /// My Maps reverts the action: waiting out the full timeout there is what made a
-    /// failed second map look like a long hang.
+    /// Waits for the import to take, after the file was set. Succeeds when the dialog
+    /// closes OR when the KML's content has rendered in the editor — some Picker variants
+    /// import the file but never auto-close, resetting to the drag view and lingering, so
+    /// waiting only for a closed dialog hangs on an import that already succeeded. Returns
+    /// early when My Maps reverts the action: waiting out the full timeout there is what
+    /// made a failed second map look like a long hang.
     /// </summary>
     public static async Task<bool> WaitForPickerCloseAsync(IImportSurface surface, int timeoutMs)
     {
@@ -57,6 +68,7 @@ internal static class MyMapsImport
         while (DateTime.UtcNow < deadline)
         {
             if (!await surface.IsPickerOpenAsync()) return true;
+            if (await surface.IsImportedAsync()) return true;
             if (await surface.IsRevertedAsync()) return false;
             await surface.DelayAsync(200);
         }
@@ -97,7 +109,13 @@ internal static class MyMapsImport
                 continue;
             }
 
-            if (await WaitForPickerCloseAsync(surface, closeTimeoutMs)) return;
+            if (await WaitForPickerCloseAsync(surface, closeTimeoutMs))
+            {
+                // The import took. A lingering Picker (the variant that doesn't auto-close)
+                // would sit over the editor and block the rename that follows, so dismiss it.
+                await DismissPickerAsync(surface, log);
+                return;
+            }
 
             if (await surface.IsRevertedAsync())
             {

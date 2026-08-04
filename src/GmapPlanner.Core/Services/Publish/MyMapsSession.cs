@@ -501,6 +501,21 @@ public sealed class MyMapsSession : IAsyncDisposable
         public Task<bool> IsPickerOpenAsync() => PickerOpenAsync(page);
         public Task<bool> IsRevertedAsync() => RevertedAsync(page);
 
+        /// <summary>The KML's first placemark rendered in the editor legend — import took.</summary>
+        public async Task<bool> IsImportedAsync()
+        {
+            var name = FirstPlacemarkName(kmlPath);
+            if (string.IsNullOrEmpty(name)) return false;
+            try
+            {
+                return await page.GetByText(name).First.IsVisibleAsync();
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public async Task PressEscapeAsync()
         {
             try

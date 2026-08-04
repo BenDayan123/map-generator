@@ -98,8 +98,24 @@ public class MyMapsHelpersTests
             () => MyMapsImport.RunAsync(surface, closeTimeoutMs: 50));
     }
 
+    [Fact]
+    public async Task Import_SucceedsWhenImportFiresButPickerLingers()
+    {
+        // The Picker variant that imports the file yet never auto-closes (resets to the
+        // drag view). The import took — so it must succeed without retrying, then dismiss
+        // the lingering dialog so the rename that follows isn't blocked.
+        var surface = new FakeImportSurface(stickyUploads: 99, imported: true);
+
+        await MyMapsImport.RunAsync(surface, closeTimeoutMs: 100);
+
+        Assert.Equal(1, surface.Uploads);   // no retry — the first import already landed
+        Assert.True(surface.Escapes >= 1);  // dismissed the lingering Picker
+        Assert.False(surface.PickerOpen);
+    }
+
     /// <summary>Editor page stand-in: the Picker dialog sticks open after the first uploads.</summary>
-    private sealed class FakeImportSurface(int stickyUploads, int reverts = 0, bool hasMid = true) : IImportSurface
+    private sealed class FakeImportSurface(
+        int stickyUploads, int reverts = 0, bool hasMid = true, bool imported = false) : IImportSurface
     {
         public int Uploads { get; private set; }
         public int Escapes { get; private set; }
@@ -123,6 +139,7 @@ public class MyMapsHelpersTests
 
         public Task<bool> IsPickerOpenAsync() => Task.FromResult(PickerOpen);
         public Task<bool> IsRevertedAsync() => Task.FromResult(Uploads <= reverts);
+        public Task<bool> IsImportedAsync() => Task.FromResult(imported && Uploads > 0);
 
         public Task PressEscapeAsync()
         {
