@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Text.Json.Nodes;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GmapPlanner.Core;
@@ -29,6 +31,24 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _googleApiKey;
     [ObservableProperty] private string _geoApiKey;
     [ObservableProperty] private string _outputDir;
+    [ObservableProperty] private string _gcpSaJson;
+    [ObservableProperty] private string _setupMessage = "";
+
+    // --- Setup status (green/⚪ checklist) -----------------------------------
+    [ObservableProperty] private bool _hasGeminiKey;
+    [ObservableProperty] private bool _hasGeoKey;
+    [ObservableProperty] private bool _hasGoogleLogin;
+    [ObservableProperty] private bool _hasDriveCredentials;
+    [ObservableProperty] private bool _hasDriveToken;
+
+    // --- Geocoding usage gauge ----------------------------------------------
+    private readonly UsageService _usage = new(Http);
+    private bool _usageLoading;
+    [ObservableProperty] private bool _hasUsage;
+    [ObservableProperty] private Geometry? _usageRingGeometry;
+    [ObservableProperty] private string _usageColor = "#388E3C";
+    [ObservableProperty] private string _usagePercentText = "";
+    [ObservableProperty] private string _usageSubText = "";
 
     // --- Options (the Streamlit sidebar) ------------------------------------
     [ObservableProperty] private int _layersPerFile = AppConfig.MaxLayersPerFile;
@@ -73,14 +93,17 @@ public partial class MainViewModel : ViewModelBase
         var settings = AppSettingsService.Load();
         _googleApiKey = settings.GoogleApiKey;
         _geoApiKey = settings.GeoApiKey;
+        _gcpSaJson = settings.GcpSaJson;
         _outputDir = string.IsNullOrEmpty(settings.OutputDir)
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")
             : settings.OutputDir;
+        RefreshSetupStatus();
     }
 
     partial void OnGoogleApiKeyChanged(string value) => SaveSettings();
     partial void OnGeoApiKeyChanged(string value) => SaveSettings();
     partial void OnOutputDirChanged(string value) => SaveSettings();
+    partial void OnGcpSaJsonChanged(string value) => SaveSettings();
     partial void OnIsBusyChanged(bool value) => GenerateCommand.NotifyCanExecuteChanged();
 
     partial void OnInputFilePathChanged(string value)
@@ -89,12 +112,113 @@ public partial class MainViewModel : ViewModelBase
         GenerateCommand.NotifyCanExecuteChanged();
     }
 
-    private void SaveSettings() => AppSettingsService.Save(new AppSettings
+    private void SaveSettings()
     {
-        GoogleApiKey = GoogleApiKey,
-        GeoApiKey = GeoApiKey,
-        OutputDir = OutputDir,
-    });
+        AppSettingsService.Save(new AppSettings
+        {
+            GoogleApiKey = GoogleApiKey,
+            GeoApiKey = GeoApiKey,
+            OutputDir = OutputDir,
+            GcpSaJson = GcpSaJson,
+        });
+        RefreshSetupStatus();
+    }
+
+    /// <summary>Recomputes the green/⚪ checklist from the saved keys, profile, and files.</summary>
+    private void RefreshSetupStatus()
+    {
+        HasGeminiKey = !string.IsNullOrWhiteSpace(GoogleApiKey);
+        HasGeoKey = !string.IsNullOrWhiteSpace(GeoApiKey);
+        HasGoogleLogin = DirHasFiles(AppConfig.PlaywrightProfileDir);
+        HasDriveCredentials = File.Exists(AppConfig.DriveCredentialsFile);
+        HasDriveToken = DirHasFiles(AppConfig.DriveTokenDir);
+    }
+
+    private static bool DirHasFiles(string path)
+    {
+        try { return Directory.Exists(path) && Directory.EnumerateFileSystemEntries(path).Any(); }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// Applies a one-file setup JSON: fills the key fields and, if it carries a
+    /// `credentials` object, writes credentials.json. Called by the file picker.
+    /// </summary>
+    public void ApplySetupBundleFile(string path)
+    {
+        try
+        {
+            var result = SetupBundleService.ApplyFromText(File.ReadAllText(path));
+            if (!result.AnythingApplied)
+            {
+                SetupMessage = "Nothing loaded — no recognized keys in that file.";
+                return;
+            }
+            // Reload so the fields (and status) reflect what the bundle wrote.
+            var settings = AppSettingsService.Load();
+            GoogleApiKey = settings.GoogleApiKey;
+            GeoApiKey = settings.GeoApiKey;
+            GcpSaJson = settings.GcpSaJson;
+            RefreshSetupStatus();
+            SetupMessage = "Loaded: " + string.Join(", ", result.Applied) + ".";
+            _ = RefreshUsageAsync();
+        }
+        catch (Exception e)
+        {
+            SetupMessage = e.Message;
+        }
+    }
+
+    /// <summary>Copies a chosen Drive OAuth client into place as credentials.json.</summary>
+    public void SetDriveCredentialsFile(string path)
+    {
+        try
+        {
+            var text = File.ReadAllText(path);
+            JsonNode.Parse(text); // reject a non-JSON file before overwriting
+            File.WriteAllText(AppConfig.DriveCredentialsFile, text);
+            RefreshSetupStatus();
+            SetupMessage = "Saved credentials.json.";
+        }
+        catch (Exception e)
+        {
+            SetupMessage = $"Not a valid credentials.json: {e.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Loads the live geocoding-usage gauge (best-effort). Hidden when no service account
+    /// is configured or Monitoring can't be read — never surfaces an error. Runs on the
+    /// UI thread (called from the view / after a geocoded run) so binding updates are safe.
+    /// </summary>
+    public async Task RefreshUsageAsync()
+    {
+        if (_usageLoading) return;
+        if (string.IsNullOrWhiteSpace(GcpSaJson)) { HasUsage = false; return; }
+
+        _usageLoading = true;
+        try
+        {
+            var gauge = await _usage.GetGeocodeUsageAsync(GcpSaJson);
+            if (gauge is null) { HasUsage = false; return; }
+
+            UsageRingGeometry = Geometry.Parse(UsageRing.ArcGeometry(gauge.Percent));
+            UsageColor = UsageRing.GaugeColor(gauge.Percent);
+            UsagePercentText = $"{gauge.Percent:0}%";
+            var reset = gauge.ResetDays switch
+            {
+                null => "",
+                1 => "\nresets tomorrow",
+                var d => $"\nresets in {d} days",
+            };
+            UsageSubText = $"Geocoding · this month\n{gauge.Used:N0} / {gauge.Limit:N0}{reset}";
+            HasUsage = true;
+        }
+        finally
+        {
+            _usageLoading = false;
+        }
+    }
 
     /// <summary>Accepts a dropped or picked itinerary, rejecting the wrong type or an oversized file.</summary>
     public void SetInputFile(string path)
@@ -176,6 +300,10 @@ public partial class MainViewModel : ViewModelBase
         {
             IsBusy = false;
         }
+
+        // A geocoded run just spent Geocoding quota — refresh the gauge once (the only
+        // refresh besides app launch), matching the Python app. Skipped when geocoding was off.
+        if (!SkipGeocoding) await RefreshUsageAsync();
     }
 
     /// <summary>

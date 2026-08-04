@@ -67,6 +67,26 @@
 
                     <Separator Margin="0,12" />
 
+                    <!-- Geocoding usage ring (hidden until a service account is configured).
+                         Canvas so the track ellipse and progress arc share one absolute
+                         140×140 coordinate space (a laid-out Path would auto-center and drift). -->
+                    <StackPanel IsVisible="{Binding HasUsage}" Spacing="4">
+                        <TextBlock Classes="sideHeader" Text="API usage" />
+                        <Grid Width="140" Height="140" HorizontalAlignment="Center">
+                            <Canvas Width="140" Height="140">
+                                <Ellipse Canvas.Left="16" Canvas.Top="16" Width="108" Height="108"
+                                         Stroke="#33808080" StrokeThickness="12" />
+                                <Path Stretch="None" Stroke="{Binding UsageColor}" StrokeThickness="12"
+                                      StrokeLineCap="Round" Data="{Binding UsageRingGeometry}" />
+                            </Canvas>
+                            <TextBlock Text="{Binding UsagePercentText}" FontSize="24" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock Classes="caption" Text="{Binding UsageSubText}"
+                                   TextAlignment="Center" HorizontalAlignment="Center" />
+                        <Separator Margin="0,12" />
+                    </StackPanel>
+
                     <TextBlock Classes="sideHeader" Text="Options" />
 
                     <TextBlock Text="Days per KML file" FontSize="13" />
@@ -254,6 +274,19 @@
                     <TextBlock Classes="caption"
                                Text="Saved on this computer, so you only enter them once." />
 
+                    <!-- One-file setup -->
+                    <Border Classes="card" BorderBrush="#0288D1" Background="#140288D1">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="📦 One-file setup" FontWeight="SemiBold" />
+                            <TextBlock Classes="caption"
+                                       Text="Drop a single JSON to fill in every setting below — API keys, the service-account JSON, and the Drive credentials.json (written automatically). Any key not in the file keeps its current value." />
+                            <Button Name="SetupBundleButton" Content="Choose setup file…"
+                                    HorizontalAlignment="Left" />
+                            <TextBlock Classes="caption" Text="{Binding SetupMessage}" Foreground="#388E3C"
+                                       IsVisible="{Binding SetupMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </Border>
+
                     <Border Classes="card">
                         <StackPanel Spacing="6">
                             <TextBlock Text="Gemini API key" FontWeight="SemiBold" />
@@ -284,6 +317,56 @@
                                 <Button Grid.Column="1" Name="BrowseOutputButton" Content="Browse…"
                                         Margin="8,0,0,0" />
                             </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Service-account JSON (usage gauge) -->
+                    <Border Classes="card">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Usage gauge (optional)" FontWeight="SemiBold" />
+                            <TextBlock Classes="caption"
+                                       Text="Paste the service-account JSON to show the live Geocoding-usage ring — the project is read from it. Needs the Cloud Monitoring API enabled and a service account with roles/monitoring.viewer." />
+                            <TextBox AcceptsReturn="True" Height="90" TextWrapping="Wrap"
+                                     Text="{Binding GcpSaJson}"
+                                     Watermark="Paste the whole service-account .json here" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Drive sharing credentials -->
+                    <Border Classes="card">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Drive sharing credentials (optional)" FontWeight="SemiBold" />
+                            <TextBlock Classes="caption"
+                                       Text="Needed only to share maps. An OAuth Desktop client credentials.json (Drive API enabled), saved locally; a browser consent runs once on first share." />
+                            <Button Name="CredentialsButton" Content="Choose credentials.json…"
+                                    HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Setup status -->
+                    <Border Classes="card">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Setup status" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock>
+                                <Run Text="{Binding HasGeminiKey, Converter={x:Static vm:BoolTick.Instance}}" />
+                                <Run Text="Gemini API key" />
+                            </TextBlock>
+                            <TextBlock>
+                                <Run Text="{Binding HasGeoKey, Converter={x:Static vm:BoolTick.Instance}}" />
+                                <Run Text="Geocoding API key" />
+                            </TextBlock>
+                            <TextBlock>
+                                <Run Text="{Binding HasGoogleLogin, Converter={x:Static vm:BoolTick.Instance}}" />
+                                <Run Text="Signed in to Google (My Maps)" />
+                            </TextBlock>
+                            <TextBlock>
+                                <Run Text="{Binding HasDriveCredentials, Converter={x:Static vm:BoolTick.Instance}}" />
+                                <Run Text="Drive credentials.json" />
+                            </TextBlock>
+                            <TextBlock>
+                                <Run Text="{Binding HasDriveToken, Converter={x:Static vm:BoolTick.Instance}}" />
+                                <Run Text="Drive access authorized" />
+                            </TextBlock>
                         </StackPanel>
                     </Border>
                 </StackPanel>

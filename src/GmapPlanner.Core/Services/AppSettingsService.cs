@@ -3,12 +3,15 @@ using GmapPlanner.Core.Json;
 
 namespace GmapPlanner.Core.Services;
 
-/// <summary>Settings saved locally (phase 1 fields only; ports appconfig.py's config.json).</summary>
+/// <summary>Settings saved locally (ports appconfig.py's config.json).</summary>
 public record AppSettings
 {
     public string GoogleApiKey { get; set; } = "";
     public string GeoApiKey { get; set; } = "";
     public string OutputDir { get; set; } = "";
+
+    /// <summary>Service-account JSON, only used for the live geocoding-usage gauge.</summary>
+    public string GcpSaJson { get; set; } = "";
 }
 
 public static class AppSettingsService

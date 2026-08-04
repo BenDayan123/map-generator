@@ -90,12 +90,20 @@ it already caused one crash (picking an output folder killed the whole app).
 
 ## UI
 
-`MainWindow.axaml` mirrors the original Streamlit app: a left sidebar (nav, Options —
-days-per-KML slider and skip-geocoding toggle) and a main pane with the drag & drop
-itinerary zone, "Generate map files", progress, an error banner, and the results block
-(success line, Days / Locations / Exact coords metric cards, per-file cards, and the
-import instructions). A second "page" holds the API keys and output folder; the two
-pages are `IsVisible` toggles on `IsMakeMapPage`/`IsSettingsPage`, not a nav framework.
+`MainWindow.axaml` mirrors the original Streamlit app: a left sidebar (nav, the live
+geocoding-usage ring, Options — days-per-KML slider and skip-geocoding toggle, and the
+Publish to My Maps controls) and a main pane with the drag & drop itinerary zone,
+"Generate map files", progress, an error banner, and the results block (success line,
+Days / Locations / Exact coords metric cards, per-file cards, and the import
+instructions). A second "page" is the Settings page — one-file setup, API keys,
+output folder, the service-account JSON for the usage ring, a credentials.json picker,
+and a green/⚪ setup-status checklist. The two pages are `IsVisible` toggles on
+`IsMakeMapPage`/`IsSettingsPage`, not a nav framework.
+
+The usage ring is drawn by hand (`UsageRing.ArcGeometry` builds an SVG-style arc string,
+the view wraps it in a `Geometry` over a `Canvas` so the track ellipse and progress arc
+share one absolute coordinate space). It stays hidden until a service-account JSON is
+set and Cloud Monitoring answers — every failure just hides it, never errors.
 
 Everything is MVVM except the file/folder pickers and drag & drop, which need the
 `TopLevel`'s `StorageProvider` and so live in `MainWindow.axaml.cs`. Those handlers are
@@ -119,8 +127,16 @@ take the process down instead of showing up in the error banner.
   same per-day colors (`AppConfig.DayColors`), same `{first}.kml` / `{first}-{last}.kml`
   naming.
 - **`AppSettingsService`** / **`AppDataPaths`** — port `appconfig.py` / `paths.py`'s
-  per-OS data directory + `config.json`, trimmed to the two API keys and output dir
-  this phase actually uses.
+  per-OS data directory + `config.json` (Gemini/Geocoding keys, output dir, and the
+  service-account JSON for the usage ring).
+- **`SetupBundleService`** — ports `appconfig.py`'s `apply_setup_bundle`: one JSON that
+  fills the keys and writes the Drive `credentials.json` (from a `credentials` key).
+  Missing/blank keys keep their current value; a non-JSON `credentials` is skipped, not
+  written. This is the one-drop fix for "credentials.json not found" when sharing.
+- **`UsageService`** — ports `usage.py`: a service-account token (via
+  `GoogleCredential`, no monitoring SDK) plus a raw Cloud Monitoring `timeSeries` query
+  for `geocoding-backend.googleapis.com` request_count this month → percent of
+  `GeoMonthlyLimit`. Best-effort; returns null (ring hidden) on any failure.
 
 ## Publishing to My Maps (phase 2)
 

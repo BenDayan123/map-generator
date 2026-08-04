@@ -19,4 +19,5 @@ namespace GmapPlanner.Core.Json;
 [JsonSerializable(typeof(UploadFileEnvelope))]
 [JsonSerializable(typeof(UploadedFile))]
 [JsonSerializable(typeof(GeocodeResponseDto))]
+[JsonSerializable(typeof(TimeSeriesResponse))]
 internal partial class GmapPlannerJsonContext : JsonSerializerContext;

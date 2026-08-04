@@ -48,4 +48,16 @@ public static class AppConfig
     public static string PlaywrightProfileDir => AppDataPaths.DataPath(".pw-profile");
     public static string DriveCredentialsFile => AppDataPaths.DataPath("credentials.json");
     public static string DriveTokenDir => AppDataPaths.DataPath("drive-token");
+
+    // --- Geocoding usage gauge (Cloud Monitoring) -----------------------------
+    // Reads the real Geocoding request count for the month and shows it as
+    // "percent of quota used". Needs a service account with roles/monitoring.viewer
+    // and the Cloud Monitoring API enabled; degrades to hidden when not configured.
+    public const int GeoMonthlyLimit = 10000;
+    public const string MonitoringScope = "https://www.googleapis.com/auth/monitoring.read";
+    public const string GeocodeService = "geocoding-backend.googleapis.com";
+
+    /// <summary>Cloud Monitoring timeSeries endpoint; {0} is the GCP project id.</summary>
+    public const string MonitoringTimeSeriesUrl =
+        "https://monitoring.googleapis.com/v3/projects/{0}/timeSeries";
 }

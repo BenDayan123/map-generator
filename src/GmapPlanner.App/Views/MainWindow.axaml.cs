@@ -13,10 +13,41 @@ public partial class MainWindow : Window
 
         BrowseInputButton.Click += async (_, _) => await SafeAsync(BrowseInputFileAsync);
         BrowseOutputButton.Click += async (_, _) => await SafeAsync(BrowseOutputFolderAsync);
+        SetupBundleButton.Click += async (_, _) => await SafeAsync(BrowseSetupBundleAsync);
+        CredentialsButton.Click += async (_, _) => await SafeAsync(BrowseCredentialsAsync);
 
         DragDrop.SetAllowDrop(DropZone, true);
         DropZone.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         DropZone.AddHandler(DragDrop.DropEvent, OnDrop);
+
+        // Load the usage gauge once the window is up, on the UI thread so binding is safe.
+        Loaded += async (_, _) =>
+        {
+            if (DataContext is MainViewModel vm) await vm.RefreshUsageAsync();
+        };
+    }
+
+    private static FilePickerOpenOptions JsonPicker(string title) => new()
+    {
+        Title = title,
+        AllowMultiple = false,
+        FileTypeFilter = [new FilePickerFileType("JSON (*.json)") { Patterns = ["*.json"] }],
+    };
+
+    private async Task BrowseSetupBundleAsync()
+    {
+        if (DataContext is not MainViewModel vm) return;
+        var files = await StorageProvider.OpenFilePickerAsync(JsonPicker("Choose a setup file"));
+        var path = files.FirstOrDefault()?.TryGetLocalPath();
+        if (path is not null) vm.ApplySetupBundleFile(path);
+    }
+
+    private async Task BrowseCredentialsAsync()
+    {
+        if (DataContext is not MainViewModel vm) return;
+        var files = await StorageProvider.OpenFilePickerAsync(JsonPicker("Choose the Drive credentials.json"));
+        var path = files.FirstOrDefault()?.TryGetLocalPath();
+        if (path is not null) vm.SetDriveCredentialsFile(path);
     }
 
     /// <summary>
