@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using GmapPlanner.App.ViewModels;
 
@@ -24,6 +25,14 @@ public partial class MainWindow : Window
         DragDrop.SetAllowDrop(DropZone, true);
         DropZone.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         DropZone.AddHandler(DragDrop.DropEvent, OnDrop);
+
+        // Drop a file straight onto the Settings pickers instead of browsing for it.
+        EnableFileDrop(SetupBundleButton, (vm, p) => vm.ApplySetupBundleFile(p));
+        EnableFileDrop(CredentialsButton, (vm, p) => vm.SetDriveCredentialsFile(p));
+
+        // Hold the eye to reveal a masked API key; release (or leave) re-masks it.
+        WireHoldReveal(GeminiKeyEye, GeminiKeyBox);
+        WireHoldReveal(GeoKeyEye, GeoKeyBox);
 
         // Load the usage gauge once the window is up, on the UI thread so binding is safe.
         Loaded += async (_, _) =>
@@ -90,6 +99,29 @@ public partial class MainWindow : Window
         if (DataContext is not MainViewModel vm) return;
         var path = e.Data.GetFiles()?.FirstOrDefault()?.TryGetLocalPath();
         if (path is not null) vm.SetInputFile(path);
+    }
+
+    /// <summary>Lets a control accept a dropped file, handing the first local path to the VM.</summary>
+    private void EnableFileDrop(Control target, Action<MainViewModel, string> onFile)
+    {
+        DragDrop.SetAllowDrop(target, true);
+        target.AddHandler(DragDrop.DragOverEvent, (_, e) =>
+            e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None);
+        target.AddHandler(DragDrop.DropEvent, (_, e) =>
+        {
+            if (DataContext is not MainViewModel vm) return;
+            var path = e.Data.GetFiles()?.FirstOrDefault()?.TryGetLocalPath();
+            if (path is not null) onFile(vm, path);
+        });
+    }
+
+    /// <summary>Reveals a password TextBox while the eye is held (tunnel, so the Button can't swallow it).</summary>
+    private static void WireHoldReveal(Control eye, TextBox box)
+    {
+        eye.AddHandler(InputElement.PointerPressedEvent, (_, _) => box.RevealPassword = true, RoutingStrategies.Tunnel);
+        eye.AddHandler(InputElement.PointerReleasedEvent, (_, _) => box.RevealPassword = false, RoutingStrategies.Tunnel);
+        // Releasing off the button (drag away) still fires PointerExited — re-mask there too.
+        eye.PointerExited += (_, _) => box.RevealPassword = false;
     }
 
     private async Task BrowseInputFileAsync()

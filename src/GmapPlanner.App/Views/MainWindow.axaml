@@ -343,8 +343,10 @@
                             </StackPanel>
                             <TextBlock Classes="caption"
                                        Text="Drop a single JSON to fill in every setting below — API keys, the service-account JSON, and the Drive credentials.json (written automatically). Any key not in the file keeps its current value." />
-                            <Button Name="SetupBundleButton" Content="Choose setup file…"
-                                    HorizontalAlignment="Left" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Name="SetupBundleButton" Content="Choose setup file…" />
+                                <TextBlock Classes="caption" Text="…or drag the .json here" VerticalAlignment="Center" />
+                            </StackPanel>
                             <TextBlock Classes="caption" Text="{Binding SetupMessage}" Foreground="{StaticResource SuccessBrush}"
                                        IsVisible="{Binding SetupMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                         </StackPanel>
@@ -355,8 +357,14 @@
                             <TextBlock Classes="subhead" Text="Gemini API key" />
                             <TextBlock Classes="caption"
                                        Text="Used to read the itinerary and extract every place per day." />
-                            <TextBox PasswordChar="•" Text="{Binding GoogleApiKey}"
-                                     Watermark="AIza…" />
+                            <Grid>
+                                <TextBox Name="GeminiKeyBox" PasswordChar="•" Text="{Binding GoogleApiKey}"
+                                         Padding="8,6,40,6" Watermark="AIza…" />
+                                <Button Name="GeminiKeyEye" Classes="eye">
+                                    <Path Classes="icon" Width="18" Height="18"
+                                          Stroke="{StaticResource MutedBrush}" Data="{StaticResource IconEye}" />
+                                </Button>
+                            </Grid>
                         </StackPanel>
                     </Border>
 
@@ -365,8 +373,14 @@
                             <TextBlock Classes="subhead" Text="Geocoding API key" />
                             <TextBlock Classes="caption"
                                        Text="Snaps each place name to its exact Google Maps coordinates. Without it, Gemini's rougher coordinates are used." />
-                            <TextBox PasswordChar="•" Text="{Binding GeoApiKey}"
-                                     Watermark="AIza…" />
+                            <Grid>
+                                <TextBox Name="GeoKeyBox" PasswordChar="•" Text="{Binding GeoApiKey}"
+                                         Padding="8,6,40,6" Watermark="AIza…" />
+                                <Button Name="GeoKeyEye" Classes="eye">
+                                    <Path Classes="icon" Width="18" Height="18"
+                                          Stroke="{StaticResource MutedBrush}" Data="{StaticResource IconEye}" />
+                                </Button>
+                            </Grid>
                         </StackPanel>
                     </Border>
 
@@ -388,8 +402,10 @@
                             <TextBlock Classes="subhead" Text="Drive sharing credentials (optional)" />
                             <TextBlock Classes="caption"
                                        Text="Needed only to share maps. An OAuth Desktop client credentials.json (Drive API enabled), saved locally; a browser consent runs once on first share." />
-                            <Button Name="CredentialsButton" Content="Choose credentials.json…"
-                                    HorizontalAlignment="Left" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Name="CredentialsButton" Content="Choose credentials.json…" />
+                                <TextBlock Classes="caption" Text="…or drag the .json here" VerticalAlignment="Center" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 

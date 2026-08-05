@@ -51,6 +51,7 @@
             <StreamGeometry x:Key="IconBox">M12 2l8 4.5v9L12 20l-8-4.5v-9z M4 6.5l8 4.5 8-4.5 M12 11v9</StreamGeometry>
             <StreamGeometry x:Key="IconUpload">M12 15V3 M7 8l5-5 5 5 M5 21h14</StreamGeometry>
             <StreamGeometry x:Key="IconDownload">M12 3v12 M7 12l5 5 5-5 M5 21h14</StreamGeometry>
+            <StreamGeometry x:Key="IconEye">M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</StreamGeometry>
         </ResourceDictionary>
     </Application.Resources>
 
@@ -216,6 +217,24 @@
         </Style>
         <Style Selector="TextBox.tokenEntry:pointerover /template/ Border#PART_BorderElement">
             <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <!-- Hold-to-reveal eye, overlaid at the right edge of a password TextBox. -->
+        <Style Selector="Button.eye">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="Width" Value="36" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTip.Tip" Value="Hold to reveal" />
+        </Style>
+        <Style Selector="Button.eye /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.eye:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
         </Style>
     </Application.Styles>
