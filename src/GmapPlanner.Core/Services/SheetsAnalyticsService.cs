@@ -11,7 +11,7 @@ public sealed record AnalyticsRow(string CreatedAt, string TripName, int Maps, i
 /// <summary>
 /// Ports gmap_planner/analytics.py: append each generated trip to a Google Sheet and read it
 /// back for the Analytics page. The Sheet outlives the local install and is human-readable in
-/// the browser, so <see cref="EnsureLayoutAsync"/> also styles it (display header, banded rows,
+/// the browser, so <see cref="ApplyLayoutAsync"/> also styles it (display header, banded rows,
 /// a summary box of live formulas) — matching the Python original's layout.
 ///
 /// Auth reuses the usage-gauge service-account JSON (Sheets API enabled, Sheet shared as Editor
@@ -129,27 +129,6 @@ public sealed class SheetsAnalyticsService(HttpClient http)
         catch
         {
             // Logging must never break a run.
-        }
-    }
-
-    /// <summary>
-    /// Makes the Sheet readable: display header row + summary box + formatting. Idempotent and
-    /// best-effort — costs one read when already laid out, and never throws. Public so the page
-    /// can offer a "Tidy up the Sheet" action. Returns true when the Sheet ended up laid out.
-    /// </summary>
-    public async Task<bool> EnsureLayoutAsync(string saJson, string sheetIdRaw, CancellationToken ct = default)
-    {
-        var sheetId = SheetIdOf(sheetIdRaw);
-        if (string.IsNullOrWhiteSpace(saJson) || string.IsNullOrEmpty(sheetId)) return false;
-        try
-        {
-            var token = await TokenAsync(saJson, ct);
-            await ApplyLayoutAsync(sheetId, token, ct);
-            return true;
-        }
-        catch
-        {
-            return false;
         }
     }
 

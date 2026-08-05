@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using GmapPlanner.Core.Errors;
@@ -40,6 +41,9 @@ public sealed class MyMapsSession : IAsyncDisposable
     private IBrowserContext? _ctx;
     private int _mapsCreated;
 
+    /// <summary>Which browser channel actually launched: "chrome"/"msedge", or null = bundled Chromium.</summary>
+    private string? _launchedChannel;
+
     private MyMapsSession(string profileDir, bool headless, Action<string>? log)
     {
         _profileDir = profileDir;
@@ -59,10 +63,20 @@ public sealed class MyMapsSession : IAsyncDisposable
 
     private async Task OpenAsync()
     {
-        EnsureDriverInstalled();
+        // Both of these are synchronous and CPU/network-bound: the chromium install can
+        // download ~150MB on first run, and the quarantine strip shells out. Run them off the
+        // UI thread so the window never freezes (the whole method is awaited from UI commands).
+        await Task.Run(() =>
+        {
+            StripQuarantineMac();
+            EnsureDriverInstalled();
+        });
         _pw = await Playwright.CreateAsync();
         _ctx = await LaunchPersistentAsync(_pw, _profileDir, _headless);
     }
+
+    /// <summary>True when no real Chrome/Edge launched and we fell back to bundled Chromium.</summary>
+    private bool OnBundledChromium => _launchedChannel is null;
 
     /// <summary>
     /// Installs Playwright's Chromium if it isn't there yet. Mirrors ensure_chromium():
@@ -82,6 +96,33 @@ public sealed class MyMapsSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// On macOS, clears the com.apple.quarantine attribute from the bundled Playwright driver.
+    /// The .dmg is unsigned, so everything inside it is quarantined on download; the user's
+    /// right-click → Open only clears the main app, leaving the nested unsigned `node` binary
+    /// Playwright execs blocked ("developer cannot be verified"). Best-effort and no-op elsewhere.
+    /// </summary>
+    private static void StripQuarantineMac()
+    {
+        if (!OperatingSystem.IsMacOS()) return;
+        try
+        {
+            var driverDir = Path.Combine(AppContext.BaseDirectory, ".playwright");
+            if (!Directory.Exists(driverDir)) return;
+            using var proc = Process.Start(new ProcessStartInfo("xattr")
+            {
+                ArgumentList = { "-dr", "com.apple.quarantine", driverDir },
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+            proc?.WaitForExit(5000);
+        }
+        catch
+        {
+            // Best-effort — if xattr is missing or fails, launch still reports a clear error.
+        }
+    }
+
+    /// <summary>
     /// Opens a persistent context as the *installed* Chrome with automation flags off.
     ///
     /// Google refuses login inside Playwright's bundled Chromium (it sees
@@ -89,7 +130,7 @@ public sealed class MyMapsSession : IAsyncDisposable
     /// gets past the "browser may not be secure" block. Falls back to bundled Chromium
     /// if neither is installed (login will likely stay blocked there).
     /// </summary>
-    private static async Task<IBrowserContext> LaunchPersistentAsync(
+    private async Task<IBrowserContext> LaunchPersistentAsync(
         IPlaywright pw, string profileDir, bool headless)
     {
         Directory.CreateDirectory(profileDir);
@@ -98,13 +139,16 @@ public sealed class MyMapsSession : IAsyncDisposable
         {
             try
             {
-                return await pw.Chromium.LaunchPersistentContextAsync(profileDir, new()
+                var ctx = await pw.Chromium.LaunchPersistentContextAsync(profileDir, new()
                 {
                     Headless = headless,
                     Args = LaunchArgs,
                     IgnoreDefaultArgs = IgnoreArgs,
                     Channel = channel,
                 });
+                _launchedChannel = channel;
+                if (channel is null) Log("no Chrome/Edge found — using bundled Chromium (Google sign-in may be blocked)");
+                return ctx;
             }
             catch (Exception e)
             {
@@ -165,7 +209,12 @@ public sealed class MyMapsSession : IAsyncDisposable
             if (await page.GetByText(MyMapsSelectors.CreateNew).CountAsync() > 0) return;
             await page.WaitForTimeoutAsync(2000);
         }
-        throw new MyMapsException("Timed out waiting for the Google login.");
+        // The common macOS case: no Chrome/Edge installed, so we're on bundled Chromium, where
+        // Google blocks sign-in ("this browser may not be secure"). Say so instead of a bare timeout.
+        throw new MyMapsException(session.OnBundledChromium
+            ? "Google sign-in needs Google Chrome or Microsoft Edge installed — it's blocked in the "
+              + "app's built-in browser. Please install Chrome, then click 'Log in to Google' again."
+            : "Timed out waiting for the Google login.");
     }
 
     /// <summary>

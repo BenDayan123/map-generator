@@ -191,6 +191,17 @@ and costs ~100MB — the app is ~230MB (win-x64) / ~290MB (osx-arm64) because of
 Swapping to PuppeteerSharp would bring it back to ~48MB at the cost of reimplementing
 the role/text selector helpers.
 
+`LaunchPersistentAsync` prefers the installed **Chrome → Edge → bundled Chromium** in that
+order (`_launchedChannel` records which won). Google blocks sign-in inside bundled Chromium,
+so a Mac with neither Chrome nor Edge can *publish* headlessly once logged in, but **login
+itself needs a real Chrome/Edge** — `LoginAsync` detects the bundled-Chromium fallback
+(`OnBundledChromium`) and throws an "install Chrome" message instead of a bare timeout. Two
+more macOS guards live in `MyMapsSession`: the synchronous `EnsureDriverInstalled()` (which
+may download ~150MB on first publish) runs inside `Task.Run` so it never freezes the UI
+thread, and `StripQuarantineMac()` clears `com.apple.quarantine` off the bundled `.playwright`
+node driver at startup (the unsigned `.dmg` quarantines it, which would otherwise block the
+`node` binary Playwright execs).
+
 ### Playwright's node driver is per-platform — three traps, all handled in the csprojs
 
 The driver ships as `.playwright/node/<platform>/` and Playwright execs it as a real

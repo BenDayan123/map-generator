@@ -437,13 +437,13 @@ public partial class MainViewModel : ViewModelBase
             if (PublishEnabled) await PublishAsync(result.Files, result.TripName);
 
             // Log the run to the analytics Google Sheet (best-effort; no-op if unconfigured).
-            // Maps and their links are known only after publishing.
-            var publishedLinks = ResultFiles.Where(f => f.HasMap).Select(f => f.MapUrl);
-            await _sheets.RecordPublishAsync(
-                GcpSaJson, AnalyticsSheetId, result.TripName,
-                maps: ResultFiles.Count(f => f.HasMap),
-                places: result.Locations,
-                mapLinks: publishedLinks);
+            // Fire-and-forget: RecordPublishAsync never throws, and a slow/unreachable Sheet must
+            // not keep the finished run "busy". Materialize off the UI collection before firing so
+            // the deferred continuation never touches ResultFiles off the UI thread.
+            var mapCount = ResultFiles.Count(f => f.HasMap);
+            var mapLinks = ResultFiles.Where(f => f.HasMap).Select(f => f.MapUrl).ToList();
+            _ = _sheets.RecordPublishAsync(
+                GcpSaJson, AnalyticsSheetId, result.TripName, mapCount, result.Locations, mapLinks);
         }
         catch (Exception e)
         {
