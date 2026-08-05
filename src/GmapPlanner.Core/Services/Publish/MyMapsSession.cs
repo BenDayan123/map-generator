@@ -288,6 +288,10 @@ public sealed class MyMapsSession : IAsyncDisposable
                             loggedTab = true;
                         }
                         await tab.ClickAsync(new() { Timeout = 1500 });
+                        // Let the upload pane's file input wire up its handler before the next
+                        // loop sets it — setting it the instant it appears in the DOM races the
+                        // uploader's init and the file silently drops (a slow, wasted retry).
+                        await page.WaitForTimeoutAsync(900);
                         break;
                     }
                 }
@@ -584,7 +588,7 @@ public sealed class MyMapsSession : IAsyncDisposable
     /// asynchronously after the file input is set; mid can appear (map saved) while the
     /// placemarks are still loading — or never load if the import silently failed.
     /// </summary>
-    private static async Task<bool> WaitForImportAsync(IPage page, string kmlPath, int timeoutMs = 40000)
+    private static async Task<bool> WaitForImportAsync(IPage page, string kmlPath, int timeoutMs = 15000)
     {
         var name = FirstPlacemarkName(kmlPath);
         if (string.IsNullOrEmpty(name))

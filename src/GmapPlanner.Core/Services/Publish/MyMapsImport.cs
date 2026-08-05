@@ -67,12 +67,18 @@ internal static class MyMapsImport
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (DateTime.UtcNow < deadline)
         {
-            if (!await surface.IsPickerOpenAsync()) return true;
+            // The real success signal is the KML's content rendering in the editor — not a
+            // closed dialog. Right after the file is set the Upload pane briefly hides its
+            // drag-text (the upload spinner), so treating a closed/flickering picker as done
+            // reports success seconds before the import finishes, dropping the upload and
+            // leaving the caller to wait out a long "no features" timeout before retrying.
             if (await surface.IsImportedAsync()) return true;
             if (await surface.IsRevertedAsync()) return false;
             await surface.DelayAsync(200);
         }
-        return false;
+        // Timed out without confirming the content. Fall back to accepting a dialog that has
+        // genuinely closed — covers a KML we can't verify by placemark name.
+        return !await surface.IsPickerOpenAsync();
     }
 
     /// <summary>
@@ -93,7 +99,7 @@ internal static class MyMapsImport
     public static async Task RunAsync(
         IImportSurface surface,
         int attempts = 3,
-        int closeTimeoutMs = 25000,
+        int closeTimeoutMs = 9000,
         Action<string>? log = null)
     {
         for (var attempt = 1; attempt <= attempts; attempt++)
