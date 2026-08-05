@@ -14,9 +14,12 @@ namespace GmapPlanner.Core.Services.Gemini;
 /// generativelanguage.googleapis.com), with structured JSON output and one retry on
 /// an unusable response body.
 /// </summary>
-public class GeminiExtractionService(HttpClient http, string apiKey)
+public class GeminiExtractionService(HttpClient http, string apiKey, string? promptOverride = null)
 {
     private const string BaseUrl = "https://generativelanguage.googleapis.com";
+
+    // Defaults to the shipped extraction prompt; overridable for A/B testing a prompt change.
+    private string PromptText => promptOverride ?? Prompt.ExtractionPrompt.Text;
 
     // A bad response is usually a one-off (truncation, a blocked/empty candidate), and
     // sampling is stochastic, so one plain retry fixes most of them. A failed *request*
@@ -80,7 +83,7 @@ public class GeminiExtractionService(HttpClient http, string apiKey)
 
     private async Task<List<JsonObject>> BuildContentPartsAsync(string filePath, CancellationToken ct)
     {
-        var promptPart = new JsonObject { ["text"] = Prompt.ExtractionPrompt.Text };
+        var promptPart = new JsonObject { ["text"] = PromptText };
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
 
         if (ext == ".txt")
@@ -120,6 +123,10 @@ public class GeminiExtractionService(HttpClient http, string apiKey)
             ),
             ["generationConfig"] = new JsonObject
             {
+                // Extraction is deterministic transcription, not creative writing. Default sampling
+                // (~1.0) occasionally reshuffles a day boundary — the intermittent "places drifted
+                // to the next day" bug. temperature 0 makes the same itinerary extract the same way.
+                ["temperature"] = 0,
                 ["responseMimeType"] = "application/json",
                 ["responseSchema"] = JsonNode.Parse(ResponseSchemaJson),
             },

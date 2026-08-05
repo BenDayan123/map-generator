@@ -3,7 +3,7 @@ namespace GmapPlanner.Core;
 /// <summary>Shared constants (phase 1: extraction/geocoding/KML only).</summary>
 public static class AppConfig
 {
-    public const string GeminiModel = "gemini-3.1-flash-lite";
+    public const string GeminiModel = "gemini-3.5-flash-lite";
 
     /// <summary>Google My Maps allows at most 10 layers per map (one KML file = one map).</summary>
     public const int MaxLayersPerFile = 10;
@@ -37,9 +37,12 @@ public static class AppConfig
     /// <summary>Friendly share-role values → Drive permission roles.</summary>
     public static readonly Dictionary<string, string> DriveRoleAliases = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["viewer"] = "reader", ["reader"] = "reader",
-        ["commenter"] = "commenter", ["comment"] = "commenter",
-        ["editor"] = "writer", ["writer"] = "writer",
+        ["viewer"] = "reader",
+        ["reader"] = "reader",
+        ["commenter"] = "commenter",
+        ["comment"] = "commenter",
+        ["editor"] = "writer",
+        ["writer"] = "writer",
     };
 
     /// <summary>

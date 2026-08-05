@@ -32,6 +32,22 @@ public static class ExtractionPrompt
           ]
         }
 
+        How to split the document into days (READ THIS — getting the day wrong is the worst error):
+        - The itinerary runs one day after another. Each day begins with a heading that names the
+          day's theme and gives its date, e.g. "יום הרג'וקו ושינג'וקו 17.8" or
+          "טעימה מהקלאסיקות של מזרח טוקיו 18.8". The date is written DAY.MONTH with a dot
+          (16.8, 17.8, 18.8 … 29.8) and usually sits at the edge of the heading line. There are
+          NO explicit "Day 1/2/3" numbers in the text — YOU assign them.
+        - Number days sequentially in the order the dated headings appear: the first dated heading
+          is day 1, the next is day 2, and so on. Never skip, merge, or restart the count.
+        - Every place, list item, evening activity and optional/alternative suggestion under a
+          heading belongs to THAT day, up to (but not including) the next dated heading. Long
+          evening or "if we have time" lists (numbered 1,2,3…, or marked אופציונלי / ** / ***) are
+          STILL part of the day they appear under — never roll them onto the following day. This is
+          the mistake to avoid: a busy day's later places drifting into the next day.
+        - Convert each heading's date to DD/MM (16.8 -> 16/08, 17.8 -> 17/08). Use "" only when a
+          day genuinely has no date.
+
         What counts as a place (extract ALL of these):
         - attractions, landmarks, monuments, statues, signs and photo spots
         - museums, galleries, theaters, zoos, aquariums, theme parks, observation decks and viewpoints
