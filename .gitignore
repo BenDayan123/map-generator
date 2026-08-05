@@ -4,6 +4,7 @@ appsettings.local.json
 config.json
 credentials.json
 token.json
+graphify-out
 storage_state.json
 *-sa.json
 service-account*.json

@@ -9,7 +9,7 @@
         x:Name="Root"
         x:DataType="vm:MainViewModel"
         x:CompileBindings="True"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/icon.ico"
         Width="1020" Height="720" MinWidth="900" MinHeight="620"
         Background="{StaticResource BgBrush}"
         FontFamily="Inter, Segoe UI Variable Text, Segoe UI"
@@ -50,6 +50,12 @@
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Path Classes="icon" Width="17" Height="17" VerticalAlignment="Center" Data="{StaticResource IconPin}" />
                             <TextBlock Text="Make Map" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="nav" Command="{Binding ShowAnalyticsCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Path Classes="icon" Width="17" Height="17" VerticalAlignment="Center" Data="{StaticResource IconChart}" />
+                            <TextBlock Text="Analytics" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav" Command="{Binding ShowSettingsCommand}">
@@ -321,6 +327,95 @@
                             <TextBlock TextWrapping="Wrap" Margin="0,6" LineHeight="22"
                                        Text="1. Open Google My Maps (google.com/mymaps) → Create a new map.&#10;2. Click Import under a layer and upload one KML file.&#10;3. Each KML adds up to 10 day-layers. For longer trips, import each file into its own layer/map." />
                         </Expander>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- ======================== ANALYTICS ======================== -->
+                <StackPanel Spacing="18" IsVisible="{Binding IsAnalyticsPage}">
+                    <StackPanel Orientation="Horizontal" Spacing="11">
+                        <Path Classes="icon" Width="26" Height="26" VerticalAlignment="Center"
+                              StrokeThickness="1.6" Stroke="#3B82F6" Data="{StaticResource IconChart}" />
+                        <TextBlock Classes="h1" Text="Analytics" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Classes="caption" FontSize="13.5"
+                               Text="A local log of every trip you've generated on this computer." />
+
+                    <!-- Empty state -->
+                    <Border Classes="card" IsVisible="{Binding !HasAnalytics}">
+                        <TextBlock Classes="caption" TextAlignment="Center"
+                                   Text="No runs yet — generate a map and its stats will show up here." />
+                    </Border>
+
+                    <StackPanel Spacing="18" IsVisible="{Binding HasAnalytics}">
+                        <!-- Summary tiles -->
+                        <Grid ColumnDefinitions="*,*,*">
+                            <Border Grid.Column="0" Classes="card" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Classes="metricLabel" Text="TRIPS" />
+                                    <TextBlock Classes="metricValue" Text="{Binding TotalTrips}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Classes="card" Margin="4,0">
+                                <StackPanel>
+                                    <TextBlock Classes="metricLabel" Text="MAPS PUBLISHED" />
+                                    <TextBlock Classes="metricValue" Text="{Binding TotalMaps}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Classes="card" Margin="8,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Classes="metricLabel" Text="PLACES" />
+                                    <TextBlock Classes="metricValue" Text="{Binding TotalPlaces}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Coordinate-accuracy donut -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Classes="sideHeader" Text="COORDINATE ACCURACY" />
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <Grid Grid.Column="0" Width="140" Height="140">
+                                        <Canvas Width="140" Height="140">
+                                            <Ellipse Canvas.Left="10" Canvas.Top="10" Width="120" Height="120"
+                                                     Stroke="{StaticResource HairlineBrush}" StrokeThickness="12" />
+                                            <Path Stretch="None" Stroke="{StaticResource AccentBrush}" StrokeThickness="12"
+                                                  StrokeLineCap="Round" Data="{Binding CoordsRingGeometry}" />
+                                        </Canvas>
+                                        <TextBlock Text="{Binding CoordsPercentText}" FontSize="24" FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Grid>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                                        <TextBlock Text="Exact Google Maps coordinates" FontWeight="SemiBold" />
+                                        <TextBlock Classes="caption" Text="{Binding CoordsLegend}" />
+                                        <TextBlock Classes="caption"
+                                                   Text="The rest kept Gemini's approximate coordinates (geocoding off or unavailable)." />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Places-per-trip bar chart -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Classes="sideHeader" Text="PLACES PER TRIP (RECENT)" />
+                                <ItemsControl ItemsSource="{Binding AnalyticsBars}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:AnalyticsBar">
+                                            <Grid ColumnDefinitions="130,*,Auto" Margin="0,0,0,9">
+                                                <TextBlock Grid.Column="0" Text="{Binding Label}" Classes="caption"
+                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                           Margin="0,0,10,0" />
+                                                <Border Grid.Column="1" Height="18" CornerRadius="5"
+                                                        Background="{StaticResource AccentBrush}"
+                                                        Width="{Binding BarWidth}" HorizontalAlignment="Left" />
+                                                <TextBlock Grid.Column="2" Text="{Binding ValueText}" FontWeight="SemiBold"
+                                                           VerticalAlignment="Center" Margin="10,0,0,0" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </StackPanel>
 

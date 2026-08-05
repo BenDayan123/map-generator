@@ -27,6 +27,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 cp -R "$PUBLISH_DIR/." "$APP/Contents/MacOS/"
 chmod +x "$APP/Contents/MacOS/$EXE"
+cp "$ROOT/src/GmapPlanner.App/Assets/icon.icns" "$APP/Contents/Resources/icon.icns"
 # Playwright's node driver must stay executable inside the bundle.
 find "$APP/Contents/MacOS/.playwright" -name node -type f -exec chmod +x {} \; 2>/dev/null || true
 
@@ -39,6 +40,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>$APP_NAME</string>
   <key>CFBundleIdentifier</key><string>com.bendayan.mymapsgenerator</string>
   <key>CFBundleExecutable</key><string>$EXE</string>
+  <key>CFBundleIconFile</key><string>icon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>

@@ -52,6 +52,7 @@
             <StreamGeometry x:Key="IconUpload">M12 15V3 M7 8l5-5 5 5 M5 21h14</StreamGeometry>
             <StreamGeometry x:Key="IconDownload">M12 3v12 M7 12l5 5 5-5 M5 21h14</StreamGeometry>
             <StreamGeometry x:Key="IconEye">M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</StreamGeometry>
+            <StreamGeometry x:Key="IconChart">M3 3v18h18 M7 16v-5 M12 16V8 M17 16v-9</StreamGeometry>
         </ResourceDictionary>
     </Application.Resources>
 

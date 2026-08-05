@@ -21,9 +21,20 @@ public partial class MainViewModel : ViewModelBase
     public int MaxLayersPerFile => AppConfig.MaxLayersPerFile;
 
     // --- Navigation ---------------------------------------------------------
-    [ObservableProperty] private bool _isSettingsPage;
-    public bool IsMakeMapPage => !IsSettingsPage;
-    partial void OnIsSettingsPageChanged(bool value) => OnPropertyChanged(nameof(IsMakeMapPage));
+    public enum AppPage { MakeMap, Analytics, Settings }
+
+    [ObservableProperty] private AppPage _page = AppPage.MakeMap;
+    public bool IsMakeMapPage => Page == AppPage.MakeMap;
+    public bool IsAnalyticsPage => Page == AppPage.Analytics;
+    public bool IsSettingsPage => Page == AppPage.Settings;
+
+    partial void OnPageChanged(AppPage value)
+    {
+        OnPropertyChanged(nameof(IsMakeMapPage));
+        OnPropertyChanged(nameof(IsAnalyticsPage));
+        OnPropertyChanged(nameof(IsSettingsPage));
+        if (value == AppPage.Analytics) LoadAnalytics();
+    }
 
     // --- Input + settings ---------------------------------------------------
     [ObservableProperty] private string _inputFilePath = "";
@@ -111,6 +122,57 @@ public partial class MainViewModel : ViewModelBase
     {
         CheckForUpdatesCommand.NotifyCanExecuteChanged();
         DownloadAndInstallUpdateCommand.NotifyCanExecuteChanged();
+    }
+
+    // --- Analytics ----------------------------------------------------------
+    [ObservableProperty] private bool _hasAnalytics;
+    [ObservableProperty] private string _totalTrips = "0";
+    [ObservableProperty] private string _totalMaps = "0";
+    [ObservableProperty] private string _totalPlaces = "0";
+    [ObservableProperty] private Geometry? _coordsRingGeometry;
+    [ObservableProperty] private string _coordsPercentText = "";
+    [ObservableProperty] private string _coordsLegend = "";
+
+    public ObservableCollection<AnalyticsBar> AnalyticsBars { get; } = [];
+
+    /// <summary>Recomputes the analytics page from the local run log. Cheap; called on nav + after a run.</summary>
+    private void LoadAnalytics()
+    {
+        try { LoadAnalyticsCore(); }
+        catch { HasAnalytics = false; } // a corrupt log must never crash the page
+    }
+
+    private void LoadAnalyticsCore()
+    {
+        var records = AnalyticsService.Load();
+        HasAnalytics = records.Count > 0;
+        if (!HasAnalytics) return;
+
+        TotalTrips = records.Count.ToString();
+        TotalMaps = records.Sum(r => r.Maps).ToString();
+        var places = records.Sum(r => r.Locations);
+        TotalPlaces = places.ToString();
+
+        // Donut: share of places snapped to exact coordinates across all runs.
+        var exact = records.Sum(r => r.ExactCoords);
+        var pct = places > 0 ? 100.0 * exact / places : 0;
+        CoordsRingGeometry = Geometry.Parse(UsageRing.ArcGeometry(pct));
+        CoordsPercentText = $"{pct:0}%";
+        CoordsLegend = $"{exact:N0} exact · {places - exact:N0} approximate";
+
+        // Bar chart: places per trip for the most recent runs (newest at top).
+        AnalyticsBars.Clear();
+        var recent = records.AsEnumerable().Reverse().Take(8).ToList();
+        var max = Math.Max(1, recent.Max(r => r.Locations));
+        foreach (var r in recent)
+        {
+            AnalyticsBars.Add(new AnalyticsBar
+            {
+                Label = string.IsNullOrWhiteSpace(r.TripName) ? r.CreatedAt.ToString("MMM d") : r.TripName,
+                ValueText = r.Locations.ToString(),
+                BarWidth = 20 + 240.0 * r.Locations / max, // min stub so tiny values stay visible
+            });
+        }
     }
 
     // --- Run state ----------------------------------------------------------
@@ -274,10 +336,13 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void ShowMakeMap() => IsSettingsPage = false;
+    private void ShowMakeMap() => Page = AppPage.MakeMap;
 
     [RelayCommand]
-    private void ShowSettings() => IsSettingsPage = true;
+    private void ShowAnalytics() => Page = AppPage.Analytics;
+
+    [RelayCommand]
+    private void ShowSettings() => Page = AppPage.Settings;
 
     private bool CanGenerate() => !IsBusy && !string.IsNullOrWhiteSpace(InputFilePath);
 
@@ -324,6 +389,17 @@ public partial class MainViewModel : ViewModelBase
             StatusText = "";
 
             if (PublishEnabled) await PublishAsync(result.Files, result.TripName);
+
+            // Log the run for the Analytics page (Maps is known only after publishing).
+            AnalyticsService.Append(new AnalyticsRecord
+            {
+                CreatedAt = DateTime.Now,
+                TripName = result.TripName,
+                Days = result.Days,
+                Locations = result.Locations,
+                ExactCoords = result.Corrected,
+                Maps = ResultFiles.Count(f => f.HasMap),
+            });
         }
         catch (Exception e)
         {
