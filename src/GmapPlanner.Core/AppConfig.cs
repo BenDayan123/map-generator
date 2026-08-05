@@ -10,6 +10,9 @@ public static class AppConfig
 
     public const string GeocodeUrl = "https://maps.googleapis.com/maps/api/geocode/json";
 
+    /// <summary>owner/repo the in-app updater checks for new releases.</summary>
+    public const string GithubRepo = "BenDayan123/map-generator";
+
     /// <summary>Per-day pin colors (Material 700 shades; white number stays readable on each).</summary>
     public static readonly string[] DayColors =
     [

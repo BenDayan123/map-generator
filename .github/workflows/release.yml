@@ -1,0 +1,89 @@
+name: Release
+
+# Push a tag like v1.0.0 to build the installers and publish a GitHub Release.
+# workflow_dispatch builds the artifacts for testing without creating a release.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Derive version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else echo "version=0.0.0" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Publish win-x64
+        run: dotnet publish src/GmapPlanner.App -c Release -r win-x64 -p:Version=${{ steps.ver.outputs.version }} -o publish/win-x64
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            /DAppVersion=${{ steps.ver.outputs.version }} `
+            "/DSourceDir=$(Resolve-Path publish\win-x64)" `
+            build\installer.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: build/MyMapsGenerator-Setup-win-x64.exe
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-14  # Apple Silicon (arm64) runner — native osx-arm64 publish
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Derive version
+        id: ver
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else echo "version=0.0.0" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Publish osx-arm64
+        run: dotnet publish src/GmapPlanner.App -c Release -r osx-arm64 -p:Version=${{ steps.ver.outputs.version }} -o publish/osx-arm64
+
+      - name: Build .dmg
+        run: |
+          chmod +x build/make-macos-dmg.sh
+          ./build/make-macos-dmg.sh publish/osx-arm64 ${{ steps.ver.outputs.version }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: build/MyMapsGenerator-osx-arm64.dmg
+          if-no-files-found: error
+
+  release:
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

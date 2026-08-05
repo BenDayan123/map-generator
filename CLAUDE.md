@@ -10,9 +10,11 @@ PyInstaller/Streamlit bundle. Avalonia UI (MVVM), .NET 8 LTS, `win-x64` + `osx-a
 
 **Phase 1 (done):** itinerary extraction (Gemini) -> geocoding -> KML generation, with a
 desktop UI. **Phase 2 (done):** My Maps publishing (Playwright) and Drive sharing.
-**Not ported:** Sheets analytics (`analytics.py`), the in-app updater (`updater.py`), and
-the hosted/headless `GOOGLE_STORAGE_STATE` path — this is a desktop app with a real
-browser and an interactive login, and Google re-challenges replayed sessions anyway.
+**Phase 3 (done):** in-app self-update via GitHub Releases (`UpdateService`) plus the
+`win-x64` Inno installer / `osx-arm64` `.dmg` built by `.github/workflows/release.yml`.
+**Not ported:** Sheets analytics (`analytics.py`) and the hosted/headless
+`GOOGLE_STORAGE_STATE` path — this is a desktop app with a real browser and an
+interactive login, and Google re-challenges replayed sessions anyway.
 
 ## Solution structure
 
@@ -211,8 +213,29 @@ Net: `win-x64` publish ships only `win32_x64`, `osx-arm64` ships only `darwin-ar
 cross-contamination. Verify a driver change by listing `publish/.playwright/node/` — it
 must contain exactly the target platform's folder plus `LICENSE`.
 
+## Releasing (phase 3)
+
+- **Version** lives in `GmapPlanner.App.csproj` (`<Version>`). CI stamps the release tag
+  over it (`-p:Version=x.y.z`) so the built binary and the tag always agree; the updater
+  reads it via `Assembly.GetEntryAssembly().GetName().Version`.
+- **`UpdateService`** ports `updater.py`: query the repo's `releases/latest`, compare tags
+  (`IsNewer`), pick this OS's asset (`.exe` on Windows, arm64 `.dmg` on macOS), download to
+  temp, and apply — Windows runs the Inno installer `/SILENT` then `Environment.Exit`s so
+  the files free up (installer relaunches via `installer.iss` `[Run] Check:WizardSilent`);
+  macOS `open`s the `.dmg` for a drag-install. All best-effort: any failure returns null so
+  a missing connection never breaks the app. The GitHub API JSON goes through the
+  source-gen `GmapPlannerJsonContext` (trimming rule #1), never reflection. The check is
+  **manual only** (Settings → "Check for updates"); there is no startup poll.
+- **Packaging** is per-platform, built by tag push (`v*`) in `.github/workflows/release.yml`:
+  `windows-latest` publishes `win-x64` and compiles `build/installer.iss` with Inno Setup
+  (per-user, no UAC) → `MyMapsGenerator-Setup-win-x64.exe`; `macos-14` (arm64) publishes
+  `osx-arm64` and `build/make-macos-dmg.sh` wraps it into a `.app` (+ `.playwright` driver,
+  `chmod +x`) and an `hdiutil` `.dmg`. A `release` job attaches both to the GitHub Release.
+  The macOS app is **unsigned** — first launch needs a right-click → Open past Gatekeeper.
+- **Cutting a release:** merge to `main`, then `git tag v1.2.3 && git push origin v1.2.3`.
+
 ## Not ported (yet)
 
 Streamlit UI (`streamlit_app.py`, `pages/`) and the pywebview desktop wrapper — Avalonia
 *is* the native wrapper, so neither has an equivalent here. Still open from the original
-repo: Sheets analytics (`analytics.py`) and the in-app updater (`updater.py`).
+repo: Sheets analytics (`analytics.py`).
