@@ -27,6 +27,7 @@ public static class SetupBundleService
         if (TryText(bundle, "GOOGLE_API_KEY", out var gemini)) { settings.GoogleApiKey = gemini; applied.Add("GOOGLE_API_KEY"); }
         if (TryText(bundle, "GEO_API_KEY", out var geo)) { settings.GeoApiKey = geo; applied.Add("GEO_API_KEY"); }
         if (TryText(bundle, "GCP_SA_JSON", out var sa)) { settings.GcpSaJson = sa; applied.Add("GCP_SA_JSON"); }
+        if (TryText(bundle, "ANALYTICS_SHEET_ID", out var sheet)) { settings.AnalyticsSheetId = sheet; applied.Add("ANALYTICS_SHEET_ID"); }
         AppSettingsService.Save(settings);
 
         // Drive OAuth client credentials.json lives as a file, not a config key.

@@ -63,4 +63,14 @@ public static class AppConfig
     /// <summary>Cloud Monitoring timeSeries endpoint; {0} is the GCP project id.</summary>
     public const string MonitoringTimeSeriesUrl =
         "https://monitoring.googleapis.com/v3/projects/{0}/timeSeries";
+
+    // --- Analytics Google Sheet ----------------------------------------------
+    // Ports analytics.py: each generated trip is appended to a Google Sheet and the
+    // Analytics page reads it back. Reuses the same service-account JSON as the usage
+    // gauge; the Sheet must be shared (Editor) with the service account's email and the
+    // Google Sheets API enabled on its project.
+    public const string SheetsScope = "https://www.googleapis.com/auth/spreadsheets";
+
+    /// <summary>Sheets v4 spreadsheet endpoint; {0} is the spreadsheet id.</summary>
+    public const string SheetsApiBase = "https://sheets.googleapis.com/v4/spreadsheets/{0}";
 }

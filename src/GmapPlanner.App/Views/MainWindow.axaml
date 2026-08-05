@@ -39,13 +39,6 @@
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,1,0">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Spacing="6" Margin="16,18,14,18">
-                    <StackPanel Orientation="Horizontal" Spacing="9" Margin="2,0,0,16">
-                        <Path Classes="icon" Width="20" Height="20" VerticalAlignment="Center"
-                              Stroke="#3B82F6" Data="{StaticResource IconPin}" />
-                        <TextBlock Text="My Maps Generator" FontWeight="SemiBold" FontSize="15"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
-
                     <Button Classes="nav" Command="{Binding ShowMakeMapCommand}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Path Classes="icon" Width="17" Height="17" VerticalAlignment="Center" Data="{StaticResource IconPin}" />
@@ -337,13 +330,19 @@
                               StrokeThickness="1.6" Stroke="#3B82F6" Data="{StaticResource IconChart}" />
                         <TextBlock Classes="h1" Text="Analytics" VerticalAlignment="Center" />
                     </StackPanel>
-                    <TextBlock Classes="caption" FontSize="13.5"
-                               Text="A local log of every trip you've generated on this computer." />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Classes="caption" FontSize="13.5" VerticalAlignment="Center"
+                                   Text="Trip stats, stored in and read from your Google Sheet." />
+                        <Button Classes="nav" Padding="8,3" Command="{Binding OpenAnalyticsSheetCommand}"
+                                IsVisible="{Binding HasAnalyticsSheetLink}">
+                            <TextBlock Text="Open the Sheet ↗" FontSize="12.5" />
+                        </Button>
+                    </StackPanel>
 
-                    <!-- Empty state -->
+                    <!-- Empty / not-configured / loading state -->
                     <Border Classes="card" IsVisible="{Binding !HasAnalytics}">
-                        <TextBlock Classes="caption" TextAlignment="Center"
-                                   Text="No runs yet — generate a map and its stats will show up here." />
+                        <TextBlock Classes="caption" TextAlignment="Center" TextWrapping="Wrap"
+                                   Text="{Binding AnalyticsMessage}" />
                     </Border>
 
                     <StackPanel Spacing="18" IsVisible="{Binding HasAnalytics}">
@@ -357,7 +356,7 @@
                             </Border>
                             <Border Grid.Column="1" Classes="card" Margin="4,0">
                                 <StackPanel>
-                                    <TextBlock Classes="metricLabel" Text="MAPS PUBLISHED" />
+                                    <TextBlock Classes="metricLabel" Text="MAPS" />
                                     <TextBlock Classes="metricValue" Text="{Binding TotalMaps}" />
                                 </StackPanel>
                             </Border>
@@ -369,30 +368,7 @@
                             </Border>
                         </Grid>
 
-                        <!-- Coordinate-accuracy donut -->
-                        <Border Classes="card">
-                            <StackPanel Spacing="8">
-                                <TextBlock Classes="sideHeader" Text="COORDINATE ACCURACY" />
-                                <Grid ColumnDefinitions="Auto,*">
-                                    <Grid Grid.Column="0" Width="140" Height="140">
-                                        <Canvas Width="140" Height="140">
-                                            <Ellipse Canvas.Left="10" Canvas.Top="10" Width="120" Height="120"
-                                                     Stroke="{StaticResource HairlineBrush}" StrokeThickness="12" />
-                                            <Path Stretch="None" Stroke="{StaticResource AccentBrush}" StrokeThickness="12"
-                                                  StrokeLineCap="Round" Data="{Binding CoordsRingGeometry}" />
-                                        </Canvas>
-                                        <TextBlock Text="{Binding CoordsPercentText}" FontSize="24" FontWeight="SemiBold"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Grid>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                                        <TextBlock Text="Exact Google Maps coordinates" FontWeight="SemiBold" />
-                                        <TextBlock Classes="caption" Text="{Binding CoordsLegend}" />
-                                        <TextBlock Classes="caption"
-                                                   Text="The rest kept Gemini's approximate coordinates (geocoding off or unavailable)." />
-                                    </StackPanel>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
+                        <TextBlock Classes="caption" Text="{Binding AnalyticsThisMonth}" />
 
                         <!-- Places-per-trip bar chart -->
                         <Border Classes="card">
@@ -488,6 +464,17 @@
                             <TextBox AcceptsReturn="True" Height="90" TextWrapping="Wrap"
                                      Text="{Binding GcpSaJson}"
                                      Watermark="Paste the whole service-account .json here" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Analytics Sheet -->
+                    <Border Classes="card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="subhead" Text="Analytics Sheet (optional)" />
+                            <TextBlock Classes="caption"
+                                       Text="Logs every generated trip to a Google Sheet the Analytics page reads back. Paste the Sheet ID (or its full URL); share the Sheet as Editor with the service account's email above and enable the Google Sheets API." />
+                            <TextBox Text="{Binding AnalyticsSheetId}"
+                                     Watermark="Sheet ID, or https://docs.google.com/spreadsheets/d/…" />
                         </StackPanel>
                     </Border>
 

@@ -10,8 +10,11 @@ public record AppSettings
     public string GeoApiKey { get; set; } = "";
     public string OutputDir { get; set; } = "";
 
-    /// <summary>Service-account JSON, only used for the live geocoding-usage gauge.</summary>
+    /// <summary>Service-account JSON, used for the live geocoding-usage gauge and the analytics Sheet.</summary>
     public string GcpSaJson { get; set; } = "";
+
+    /// <summary>Id (or full URL) of the Google Sheet the Analytics page logs to and reads from.</summary>
+    public string AnalyticsSheetId { get; set; } = "";
 }
 
 public static class AppSettingsService

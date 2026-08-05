@@ -33,7 +33,7 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsMakeMapPage));
         OnPropertyChanged(nameof(IsAnalyticsPage));
         OnPropertyChanged(nameof(IsSettingsPage));
-        if (value == AppPage.Analytics) LoadAnalytics();
+        if (value == AppPage.Analytics) _ = LoadAnalyticsAsync();
     }
 
     // --- Input + settings ---------------------------------------------------
@@ -42,6 +42,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _googleApiKey;
     [ObservableProperty] private string _geoApiKey;
     [ObservableProperty] private string _gcpSaJson;
+    [ObservableProperty] private string _analyticsSheetId;
 
     // KML is written to a throwaway working dir, never the user's Downloads. The user
     // pulls the files out with the Download button on the Make Map page.
@@ -124,55 +125,96 @@ public partial class MainViewModel : ViewModelBase
         DownloadAndInstallUpdateCommand.NotifyCanExecuteChanged();
     }
 
-    // --- Analytics ----------------------------------------------------------
-    [ObservableProperty] private bool _hasAnalytics;
+    // --- Analytics (Google Sheet) -------------------------------------------
+    private readonly SheetsAnalyticsService _sheets = new(Http);
+
+    [ObservableProperty] private bool _hasAnalytics;              // rows loaded and shown
+    [ObservableProperty] private bool _analyticsLoading;
+    [ObservableProperty] private string _analyticsMessage = "";   // empty-state / config / error text
     [ObservableProperty] private string _totalTrips = "0";
     [ObservableProperty] private string _totalMaps = "0";
     [ObservableProperty] private string _totalPlaces = "0";
-    [ObservableProperty] private Geometry? _coordsRingGeometry;
-    [ObservableProperty] private string _coordsPercentText = "";
-    [ObservableProperty] private string _coordsLegend = "";
+    [ObservableProperty] private string _analyticsThisMonth = "";
 
+    public bool HasAnalyticsSheetLink => SheetsAnalyticsService.IsConfigured(GcpSaJson, AnalyticsSheetId);
     public ObservableCollection<AnalyticsBar> AnalyticsBars { get; } = [];
 
-    /// <summary>Recomputes the analytics page from the local run log. Cheap; called on nav + after a run.</summary>
-    private void LoadAnalytics()
+    /// <summary>
+    /// Loads the analytics page from the Google Sheet. Best-effort: an unconfigured or
+    /// unreachable Sheet shows a guidance message rather than an error. Called on nav + after a run.
+    /// </summary>
+    private async Task LoadAnalyticsAsync()
     {
-        try { LoadAnalyticsCore(); }
-        catch { HasAnalytics = false; } // a corrupt log must never crash the page
+        OnPropertyChanged(nameof(HasAnalyticsSheetLink));
+        if (!SheetsAnalyticsService.IsConfigured(GcpSaJson, AnalyticsSheetId))
+        {
+            HasAnalytics = false;
+            AnalyticsMessage = "Analytics storage isn't configured. On the Settings page, paste the "
+                + "service-account JSON and set the Analytics Sheet ID, then share the Sheet (Editor) "
+                + "with the service account's email and enable the Google Sheets API.";
+            return;
+        }
+
+        AnalyticsLoading = true;
+        AnalyticsMessage = "Loading from the Google Sheet…";
+        try
+        {
+            var rows = await _sheets.FetchRowsAsync(GcpSaJson, AnalyticsSheetId);
+            if (rows is null)
+            {
+                HasAnalytics = false;
+                AnalyticsMessage = "Couldn't read the Sheet — check that it's shared with the service "
+                    + "account and the Google Sheets API is enabled.";
+                return;
+            }
+            if (rows.Count == 0)
+            {
+                HasAnalytics = false;
+                AnalyticsMessage = "No trips logged yet. Generate a map and it'll show up here.";
+                return;
+            }
+
+            TotalTrips = rows.Select(r => r.TripName).Distinct(StringComparer.OrdinalIgnoreCase).Count().ToString();
+            TotalMaps = rows.Sum(r => r.Maps).ToString();
+            var places = rows.Sum(r => r.Places);
+            TotalPlaces = places.ToString();
+
+            var monthPrefix = DateTime.Now.ToString("yyyy-MM");
+            var monthRows = rows.Where(r => r.CreatedAt.StartsWith(monthPrefix)).ToList();
+            AnalyticsThisMonth = $"This month: {monthRows.Count} run(s), "
+                + $"{monthRows.Sum(r => r.Maps)} map(s), {monthRows.Sum(r => r.Places)} place(s).";
+
+            // Bar chart: places per trip for the most recent rows (newest at top).
+            AnalyticsBars.Clear();
+            var recent = rows.AsEnumerable().Reverse().Take(8).ToList();
+            var max = Math.Max(1, recent.Max(r => r.Places));
+            foreach (var r in recent)
+                AnalyticsBars.Add(new AnalyticsBar
+                {
+                    Label = string.IsNullOrWhiteSpace(r.TripName) ? r.CreatedAt : r.TripName,
+                    ValueText = r.Places.ToString(),
+                    BarWidth = 20 + 240.0 * r.Places / max, // min stub so tiny values stay visible
+                });
+
+            HasAnalytics = true;
+        }
+        catch
+        {
+            HasAnalytics = false;
+            AnalyticsMessage = "Couldn't load analytics right now.";
+        }
+        finally
+        {
+            AnalyticsLoading = false;
+        }
     }
 
-    private void LoadAnalyticsCore()
+    [RelayCommand]
+    private void OpenAnalyticsSheet()
     {
-        var records = AnalyticsService.Load();
-        HasAnalytics = records.Count > 0;
-        if (!HasAnalytics) return;
-
-        TotalTrips = records.Count.ToString();
-        TotalMaps = records.Sum(r => r.Maps).ToString();
-        var places = records.Sum(r => r.Locations);
-        TotalPlaces = places.ToString();
-
-        // Donut: share of places snapped to exact coordinates across all runs.
-        var exact = records.Sum(r => r.ExactCoords);
-        var pct = places > 0 ? 100.0 * exact / places : 0;
-        CoordsRingGeometry = Geometry.Parse(UsageRing.ArcGeometry(pct));
-        CoordsPercentText = $"{pct:0}%";
-        CoordsLegend = $"{exact:N0} exact · {places - exact:N0} approximate";
-
-        // Bar chart: places per trip for the most recent runs (newest at top).
-        AnalyticsBars.Clear();
-        var recent = records.AsEnumerable().Reverse().Take(8).ToList();
-        var max = Math.Max(1, recent.Max(r => r.Locations));
-        foreach (var r in recent)
-        {
-            AnalyticsBars.Add(new AnalyticsBar
-            {
-                Label = string.IsNullOrWhiteSpace(r.TripName) ? r.CreatedAt.ToString("MMM d") : r.TripName,
-                ValueText = r.Locations.ToString(),
-                BarWidth = 20 + 240.0 * r.Locations / max, // min stub so tiny values stay visible
-            });
-        }
+        if (!HasAnalyticsSheetLink) return;
+        try { Process.Start(new ProcessStartInfo(SheetsAnalyticsService.SheetUrl(AnalyticsSheetId)) { UseShellExecute = true }); }
+        catch { /* opening a browser is a nicety */ }
     }
 
     // --- Run state ----------------------------------------------------------
@@ -195,12 +237,14 @@ public partial class MainViewModel : ViewModelBase
         _googleApiKey = settings.GoogleApiKey;
         _geoApiKey = settings.GeoApiKey;
         _gcpSaJson = settings.GcpSaJson;
+        _analyticsSheetId = settings.AnalyticsSheetId;
         RefreshSetupStatus();
     }
 
     partial void OnGoogleApiKeyChanged(string value) => SaveSettings();
     partial void OnGeoApiKeyChanged(string value) => SaveSettings();
     partial void OnGcpSaJsonChanged(string value) => SaveSettings();
+    partial void OnAnalyticsSheetIdChanged(string value) => SaveSettings();
     partial void OnIsBusyChanged(bool value) => GenerateCommand.NotifyCanExecuteChanged();
 
     partial void OnInputFilePathChanged(string value)
@@ -216,6 +260,7 @@ public partial class MainViewModel : ViewModelBase
             GoogleApiKey = GoogleApiKey,
             GeoApiKey = GeoApiKey,
             GcpSaJson = GcpSaJson,
+            AnalyticsSheetId = AnalyticsSheetId,
         });
         RefreshSetupStatus();
     }
@@ -255,6 +300,7 @@ public partial class MainViewModel : ViewModelBase
             GoogleApiKey = settings.GoogleApiKey;
             GeoApiKey = settings.GeoApiKey;
             GcpSaJson = settings.GcpSaJson;
+            AnalyticsSheetId = settings.AnalyticsSheetId;
             RefreshSetupStatus();
             SetupMessage = "Loaded: " + string.Join(", ", result.Applied) + ".";
             _ = RefreshUsageAsync();
@@ -390,16 +436,14 @@ public partial class MainViewModel : ViewModelBase
 
             if (PublishEnabled) await PublishAsync(result.Files, result.TripName);
 
-            // Log the run for the Analytics page (Maps is known only after publishing).
-            AnalyticsService.Append(new AnalyticsRecord
-            {
-                CreatedAt = DateTime.Now,
-                TripName = result.TripName,
-                Days = result.Days,
-                Locations = result.Locations,
-                ExactCoords = result.Corrected,
-                Maps = ResultFiles.Count(f => f.HasMap),
-            });
+            // Log the run to the analytics Google Sheet (best-effort; no-op if unconfigured).
+            // Maps and their links are known only after publishing.
+            var publishedLinks = ResultFiles.Where(f => f.HasMap).Select(f => f.MapUrl);
+            await _sheets.RecordPublishAsync(
+                GcpSaJson, AnalyticsSheetId, result.TripName,
+                maps: ResultFiles.Count(f => f.HasMap),
+                places: result.Locations,
+                mapLinks: publishedLinks);
         }
         catch (Exception e)
         {

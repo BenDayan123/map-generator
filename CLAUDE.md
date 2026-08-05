@@ -12,9 +12,10 @@ PyInstaller/Streamlit bundle. Avalonia UI (MVVM), .NET 8 LTS, `win-x64` + `osx-a
 desktop UI. **Phase 2 (done):** My Maps publishing (Playwright) and Drive sharing.
 **Phase 3 (done):** in-app self-update via GitHub Releases (`UpdateService`) plus the
 `win-x64` Inno installer / `osx-arm64` `.dmg` built by `.github/workflows/release.yml`.
-**Not ported:** Sheets analytics (`analytics.py`) and the hosted/headless
-`GOOGLE_STORAGE_STATE` path — this is a desktop app with a real browser and an
-interactive login, and Google re-challenges replayed sessions anyway.
+**Phase 4 (done):** Sheets analytics (`SheetsAnalyticsService`) — the Analytics page logs
+each generated trip to a Google Sheet and reads it back, porting `analytics.py`.
+**Not ported:** the hosted/headless `GOOGLE_STORAGE_STATE` path — this is a desktop app
+with a real browser and an interactive login, and Google re-challenges replayed sessions anyway.
 
 ## Solution structure
 
@@ -237,5 +238,21 @@ must contain exactly the target platform's folder plus `LICENSE`.
 ## Not ported (yet)
 
 Streamlit UI (`streamlit_app.py`, `pages/`) and the pywebview desktop wrapper — Avalonia
-*is* the native wrapper, so neither has an equivalent here. Still open from the original
-repo: Sheets analytics (`analytics.py`).
+*is* the native wrapper, so neither has an equivalent here. Nothing else from the original
+repo is outstanding.
+
+## Analytics Sheet (phase 4)
+
+- **`SheetsAnalyticsService`** — ports `analytics.py`. Each generated trip is appended to a
+  Google Sheet (cols `Created At / Trip Name / Maps / Places / Map Links`, A..E) and the
+  Analytics page reads it back. Auth reuses the usage-gauge service-account JSON
+  (`AppSettings.GcpSaJson`) scoped to `spreadsheets`; the Sheet id (bare or full URL) is
+  `AppSettings.AnalyticsSheetId`, set on the Settings page and carried by the one-file setup
+  bundle (`ANALYTICS_SHEET_ID`). Raw Sheets REST + `JsonNode` (no Sheets SDK, no source-gen
+  DTOs — DOM `JsonObject`/`JsonArray` bodies dodge trimming rule #1). `EnsureLayoutAsync`
+  ports `_layout_requests`/`_SUMMARY`: frozen teal header, banded rows, real datetimes in A,
+  a summary box of live formulas (`=SUMIFS`/`COUNTUNIQUE`/`EOMONTH` month windows). All
+  best-effort: `FetchRowsAsync` returns null (page shows a "configure it" message) on any
+  failure, `RecordPublishAsync` swallows so logging never breaks a run. The Sheet must be
+  shared (Editor) with the SA email and the Sheets API enabled. No hosted Sheet fallback —
+  a local `analytics.json` is *not* kept; the Sheet is the single source.
