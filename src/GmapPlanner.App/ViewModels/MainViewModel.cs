@@ -30,8 +30,12 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _inputFileName = "";
     [ObservableProperty] private string _googleApiKey;
     [ObservableProperty] private string _geoApiKey;
-    [ObservableProperty] private string _outputDir;
     [ObservableProperty] private string _gcpSaJson;
+
+    // KML is written to a throwaway working dir, never the user's Downloads. The user
+    // pulls the files out with the Download button on the Make Map page.
+    // ponytail: OS temp, no cleanup — files are small and Windows/macOS reclaim temp.
+    private static string WorkDir => Path.Combine(Path.GetTempPath(), "GmapPlanner");
     [ObservableProperty] private string _setupMessage = "";
 
     // --- Setup status (green/⚪ checklist) -----------------------------------
@@ -56,7 +60,6 @@ public partial class MainViewModel : ViewModelBase
 
     // --- Publish to My Maps -------------------------------------------------
     [ObservableProperty] private bool _publishEnabled;
-    [ObservableProperty] private string _shareEmails = "";
     [ObservableProperty] private int _shareRoleIndex; // 0 viewer, 1 commenter, 2 editor
     [ObservableProperty] private bool _notifyShare = true;
     [ObservableProperty] private bool _showBrowser;
@@ -68,11 +71,47 @@ public partial class MainViewModel : ViewModelBase
     private string SelectedRole =>
         ShareRoles[Math.Clamp(ShareRoleIndex, 0, ShareRoles.Length - 1)];
 
-    /// <summary>Recipients, de-duplicated, from the comma/newline separated box.</summary>
-    private List<string> Recipients => ShareEmails
-        .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToList();
+    /// <summary>Recipient email chips shown in the token input. Deduped on add.</summary>
+    public ObservableCollection<string> ShareEmailsList { get; } = [];
+
+    private List<string> Recipients => ShareEmailsList.ToList();
+
+    private static readonly char[] EmailSeparators = [',', ';', ' ', '\t', '\n', '\r'];
+
+    /// <summary>Splits a typed/pasted string on the usual separators and adds each as a chip.</summary>
+    public void AddEmails(string raw)
+    {
+        foreach (var email in raw.Split(EmailSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            if (!ShareEmailsList.Any(x => string.Equals(x, email, StringComparison.OrdinalIgnoreCase)))
+                ShareEmailsList.Add(email);
+    }
+
+    /// <summary>Backspace on an empty input pops the last chip.</summary>
+    public void RemoveLastEmail()
+    {
+        if (ShareEmailsList.Count > 0) ShareEmailsList.RemoveAt(ShareEmailsList.Count - 1);
+    }
+
+    [RelayCommand]
+    private void RemoveEmail(string? email)
+    {
+        if (email is not null) ShareEmailsList.Remove(email);
+    }
+
+    // --- Updates ------------------------------------------------------------
+    private readonly UpdateService _updater = new(Http);
+    private UpdateInfo? _pendingUpdate;
+
+    public string AppVersion => $"v{UpdateService.CurrentVersion()}";
+    [ObservableProperty] private string _updateStatus = "";
+    [ObservableProperty] private bool _updateAvailable;
+    [ObservableProperty] private bool _isCheckingUpdate;
+
+    partial void OnIsCheckingUpdateChanged(bool value)
+    {
+        CheckForUpdatesCommand.NotifyCanExecuteChanged();
+        DownloadAndInstallUpdateCommand.NotifyCanExecuteChanged();
+    }
 
     // --- Run state ----------------------------------------------------------
     [ObservableProperty] private string _statusText = "";
@@ -85,7 +124,6 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _resultLocations = "";
     [ObservableProperty] private string _resultExactCoords = "";
     [ObservableProperty] private string _geocodeWarning = "";
-    [ObservableProperty] private string _resultOutputDir = "";
 
     public ObservableCollection<KmlFileItem> ResultFiles { get; } = [];
 
@@ -95,15 +133,11 @@ public partial class MainViewModel : ViewModelBase
         _googleApiKey = settings.GoogleApiKey;
         _geoApiKey = settings.GeoApiKey;
         _gcpSaJson = settings.GcpSaJson;
-        _outputDir = string.IsNullOrEmpty(settings.OutputDir)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")
-            : settings.OutputDir;
         RefreshSetupStatus();
     }
 
     partial void OnGoogleApiKeyChanged(string value) => SaveSettings();
     partial void OnGeoApiKeyChanged(string value) => SaveSettings();
-    partial void OnOutputDirChanged(string value) => SaveSettings();
     partial void OnGcpSaJsonChanged(string value) => SaveSettings();
     partial void OnIsBusyChanged(bool value) => GenerateCommand.NotifyCanExecuteChanged();
 
@@ -119,7 +153,6 @@ public partial class MainViewModel : ViewModelBase
         {
             GoogleApiKey = GoogleApiKey,
             GeoApiKey = GeoApiKey,
-            OutputDir = OutputDir,
             GcpSaJson = GcpSaJson,
         });
         RefreshSetupStatus();
@@ -272,7 +305,7 @@ public partial class MainViewModel : ViewModelBase
 
             var result = await pipeline.RunAsync(
                 InputFilePath,
-                OutputDir,
+                WorkDir,
                 layersPerFile: LayersPerFile,
                 noGeocode: SkipGeocoding,
                 progress: (step, frac) =>
@@ -286,7 +319,6 @@ public partial class MainViewModel : ViewModelBase
             ResultLocations = result.Locations.ToString();
             ResultExactCoords = $"{result.Corrected}/{result.Corrected + result.Fallback}";
             GeocodeWarning = result.GeocodeWarning ?? "";
-            ResultOutputDir = result.OutputDir;
             foreach (var path in result.Files) ResultFiles.Add(KmlFileItem.FromPath(path));
             HasResult = true;
             StatusText = "";
@@ -414,21 +446,100 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
-    private void OpenOutputFolder()
+    // --- Update commands ----------------------------------------------------
+    private bool NotChecking() => !IsCheckingUpdate;
+
+    [RelayCommand(CanExecute = nameof(NotChecking))]
+    private async Task CheckForUpdatesAsync()
     {
-        if (string.IsNullOrEmpty(ResultOutputDir) || !Directory.Exists(ResultOutputDir)) return;
+        IsCheckingUpdate = true;
+        UpdateAvailable = false;
+        UpdateStatus = "Checking for updates…";
+        _pendingUpdate = null;
+        try
+        {
+            var info = await _updater.CheckForUpdateAsync(AppConfig.GithubRepo);
+            if (info is null) { UpdateStatus = "Couldn't check for updates — check your connection."; return; }
+            if (!info.HasUpdate) { UpdateStatus = $"You're on the latest version (v{info.Current})."; return; }
+
+            _pendingUpdate = info;
+            if (info.HasAsset && UpdateService.IsSelfUpdateSupported)
+            {
+                UpdateAvailable = true;
+                UpdateStatus = $"Version {info.Latest} is available.";
+            }
+            else
+            {
+                // Reachable release but no installer for this OS — point at the page instead.
+                UpdateStatus = $"Version {info.Latest} is available — download it from the releases page.";
+            }
+        }
+        finally
+        {
+            IsCheckingUpdate = false;
+        }
+    }
+
+    private bool CanInstallUpdate() => !IsCheckingUpdate && _pendingUpdate is { HasAsset: true };
+
+    [RelayCommand(CanExecute = nameof(CanInstallUpdate))]
+    private async Task DownloadAndInstallUpdateAsync()
+    {
+        if (_pendingUpdate is not { HasAsset: true } info) return;
+        IsCheckingUpdate = true;
+        try
+        {
+            UpdateStatus = "Downloading update…";
+            var path = await _updater.DownloadAssetAsync(
+                info.AssetUrl, info.AssetName,
+                progress: p => UpdateStatus = $"Downloading update… {p:P0}");
+            UpdateStatus = "Starting the installer…";
+            // On Windows this quits the app so the installer can replace the files, then
+            // relaunches the new version; on macOS it opens the .dmg for a drag-install.
+            UpdateService.ApplyUpdate(path);
+        }
+        catch (Exception e)
+        {
+            UpdateStatus = $"Update failed: {e.Message}";
+        }
+        finally
+        {
+            IsCheckingUpdate = false;
+        }
+    }
+
+    [RelayCommand]
+    private void OpenReleasePage()
+    {
+        var url = _pendingUpdate is { HtmlUrl.Length: > 0 } info
+            ? info.HtmlUrl
+            : $"https://github.com/{AppConfig.GithubRepo}/releases";
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+        catch { /* opening a browser is a nicety */ }
+    }
+
+    /// <summary>
+    /// Copies the generated KML files (in the temp working dir) into a folder the user
+    /// picked, then reveals it. This is the only path that puts KML on the user's disk —
+    /// nothing is written to Downloads automatically.
+    /// </summary>
+    public void SaveKmlFilesTo(string folder)
+    {
+        foreach (var f in ResultFiles)
+        {
+            try { File.Copy(f.Path, Path.Combine(folder, f.FileName), overwrite: true); }
+            catch (Exception e) { ErrorText = $"Couldn't save {f.FileName}: {e.Message}"; return; }
+        }
+        StatusText = $"Saved {ResultFiles.Count} file(s) to {folder}";
         try
         {
             // Best-effort reveal, like the Python app's reveal_in_file_manager.
-            var (exe, args) = OperatingSystem.IsMacOS()
-                ? ("open", ResultOutputDir)
-                : ("explorer.exe", ResultOutputDir);
+            var (exe, args) = OperatingSystem.IsMacOS() ? ("open", folder) : ("explorer.exe", folder);
             Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true });
         }
         catch
         {
-            // Opening a file manager is a nicety; never fail the run over it.
+            // Opening a file manager is a nicety; never fail over it.
         }
     }
 }

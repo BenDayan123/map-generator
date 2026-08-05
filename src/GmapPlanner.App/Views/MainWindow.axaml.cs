@@ -12,9 +12,14 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         BrowseInputButton.Click += async (_, _) => await SafeAsync(BrowseInputFileAsync);
-        BrowseOutputButton.Click += async (_, _) => await SafeAsync(BrowseOutputFolderAsync);
+        DownloadButton.Click += async (_, _) => await SafeAsync(DownloadKmlFilesAsync);
         SetupBundleButton.Click += async (_, _) => await SafeAsync(BrowseSetupBundleAsync);
         CredentialsButton.Click += async (_, _) => await SafeAsync(BrowseCredentialsAsync);
+
+        // Email token input: Enter/Tab/separators commit a chip; Backspace on empty pops one;
+        // losing focus commits whatever's half-typed so it isn't silently lost.
+        EmailEntry.KeyDown += OnEmailEntryKeyDown;
+        EmailEntry.LostFocus += (_, _) => CommitEmailEntry();
 
         DragDrop.SetAllowDrop(DropZone, true);
         DropZone.AddHandler(DragDrop.DragOverEvent, OnDragOver);
@@ -104,16 +109,43 @@ public partial class MainWindow : Window
         if (path is not null) vm.SetInputFile(path);
     }
 
-    private async Task BrowseOutputFolderAsync()
+    private async Task DownloadKmlFilesAsync()
     {
-        if (DataContext is not MainViewModel vm) return;
+        if (DataContext is not MainViewModel vm || vm.ResultFiles.Count == 0) return;
 
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "Choose an output folder",
+            Title = "Save KML files to…",
             AllowMultiple = false,
         });
         var path = folders.FirstOrDefault()?.TryGetLocalPath();
-        if (path is not null) vm.OutputDir = path;
+        if (path is not null) vm.SaveKmlFilesTo(path);
+    }
+
+    private void OnEmailEntryKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+
+        // Backspace with nothing typed removes the last chip.
+        if (e.Key == Key.Back && string.IsNullOrEmpty(tb.Text))
+        {
+            (DataContext as MainViewModel)?.RemoveLastEmail();
+            return;
+        }
+
+        // Enter / Tab / , ; commit the typed text as chip(s).
+        if (e.Key is Key.Enter or Key.Tab or Key.OemComma or Key.OemSemicolon)
+        {
+            if (CommitEmailEntry()) e.Handled = true;
+        }
+    }
+
+    /// <summary>Turns whatever is in the entry box into chips and clears it. True if it had text.</summary>
+    private bool CommitEmailEntry()
+    {
+        if (DataContext is not MainViewModel vm || string.IsNullOrWhiteSpace(EmailEntry.Text)) return false;
+        vm.AddEmails(EmailEntry.Text);
+        EmailEntry.Text = "";
+        return true;
     }
 }
