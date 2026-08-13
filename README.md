@@ -5,7 +5,7 @@ My Maps KML files — extraction, geocoding, and map generation in one flow, wit
 one-click publishing straight to My Maps.
 
 C#/.NET rewrite of the original Python/Streamlit tool, built as a small, self-contained
-cross-platform desktop app instead of a ~500MB PyInstaller/Streamlit bundle.
+cross-platform desktop app.
 
 ## What it does
 
