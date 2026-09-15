@@ -18,12 +18,13 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <!-- All styles/tokens live in App.axaml so the whole app shares one design system. -->
+    <!-- All styles/tokens live in GmapPlanner.UI/Theme.axaml (included by each host's
+         App.axaml) so the whole app shares one design system. -->
 
     <Grid Name="RootGrid">
         <Grid.ColumnDefinitions>
             <!-- Sidebar: drag the splitter to resize. MaxWidth is pinned to 1/3 of the
-                 window in code-behind (OnSizeChanged). -->
+                 view in code-behind (MainView.axaml.cs OnSizeChanged). -->
             <ColumnDefinition Width="280" MinWidth="220" />
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />

@@ -7,6 +7,11 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- This library references Microsoft.Playwright transitively via GmapPlanner.Core.Publish,
+         so Microsoft.Playwright.targets runs here too and would otherwise leak the BUILD HOST's
+         node driver into the app's publish. Any library touching Playwright, directly or
+         transitively, bundles no driver — the app (which knows its target RID) copies the right one. -->
+    <PlaywrightPlatform>none</PlaywrightPlatform>
   </PropertyGroup>
 
   <ItemGroup>

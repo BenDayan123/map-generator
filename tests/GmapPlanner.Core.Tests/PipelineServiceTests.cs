@@ -24,26 +24,35 @@ public class PipelineServiceTests
     [Fact]
     public async Task GenerateAsync_ReturnsKmlInMemoryWithoutWritingFiles()
     {
-        var result = await Pipeline().GenerateAsync(await TempTxt(), layersPerFile: 10);
+        var txtPath = await TempTxt();
+        try
+        {
+            var result = await Pipeline().GenerateAsync(txtPath, layersPerFile: 10);
 
-        Assert.Equal("Tokyo/Kyoto Trip", result.TripName);
-        Assert.Equal(2, result.Days);
-        Assert.Equal(2, result.Locations);
-        Assert.Equal(2, result.Fallback); // no Places key -> Gemini's coords kept
-        var kml = Assert.Single(result.KmlFiles);
-        Assert.Equal("1-2.kml", kml.FileName);
-        Assert.Contains("Senso-ji, Tokyo", kml.Content);
-        Assert.Empty(result.Files);
-        Assert.Equal("", result.OutputDir);
+            Assert.Equal("Tokyo/Kyoto Trip", result.TripName);
+            Assert.Equal(2, result.Days);
+            Assert.Equal(2, result.Locations);
+            Assert.Equal(2, result.Fallback); // no Places key -> Gemini's coords kept
+            var kml = Assert.Single(result.KmlFiles);
+            Assert.Equal("1-2.kml", kml.FileName);
+            Assert.Contains("Senso-ji, Tokyo", kml.Content);
+            Assert.Empty(result.Files);
+            Assert.Equal("", result.OutputDir);
+        }
+        finally
+        {
+            File.Delete(txtPath);
+        }
     }
 
     [Fact]
     public async Task RunAsync_SavesTheGeneratedKmlUnderTheTripFolder()
     {
+        var txtPath = await TempTxt();
         var outputDir = Path.Combine(Path.GetTempPath(), "gmap-planner-tests-" + Guid.NewGuid());
         try
         {
-            var result = await Pipeline().RunAsync(await TempTxt(), outputDir, layersPerFile: 1);
+            var result = await Pipeline().RunAsync(txtPath, outputDir, layersPerFile: 1);
 
             Assert.Equal(Path.Combine(outputDir, "TokyoKyoto Trip"), result.OutputDir);
             Assert.Equal(new[] { "1.kml", "2.kml" }, result.KmlFiles.Select(f => f.FileName));
@@ -52,6 +61,7 @@ public class PipelineServiceTests
         }
         finally
         {
+            File.Delete(txtPath);
             if (Directory.Exists(outputDir)) Directory.Delete(outputDir, recursive: true);
         }
     }

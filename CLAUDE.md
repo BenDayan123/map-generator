@@ -85,7 +85,9 @@ it already caused one crash (picking an output folder killed the whole app).
    **every** build, Debug included — so `JsonSerializer.Serialize(obj)`,
    `ReadFromJsonAsync<T>()`, `JsonContent.Create(new { … })` all throw
    `InvalidOperationException` at runtime. Add the type to
-   `Core/Json/GmapPlannerJsonContext.cs` and pass its `JsonTypeInfo` instead.
+   `Core/Json/GmapPlannerJsonContext.cs` if it's serialized by `GmapPlanner.Core`, or to
+   `Core.Publish/Json/PublishJsonContext.cs` if it's serialized by `GmapPlanner.Core.Publish`,
+   and pass its `JsonTypeInfo` instead.
    The test project turns the same switch off, so a reflection-based call fails
    `dotnet test` rather than reaching a user.
 2. **Keep XAML bindings compiled.** `MainView.axaml` sets `x:CompileBindings="True"`
@@ -95,8 +97,12 @@ it already caused one crash (picking an output folder killed the whole app).
    via reflection over its own DOM, so it is listed as a `TrimmerRootAssembly`. Do the
    same for `Google.Apis`/Playwright in Phase 2.
 4. **Verify against the published exe, not just `dotnet run`.** A clean publish should
-   emit no `IL2026` warnings from our own code; the ones left are Avalonia's designer
-   and remote-protocol assemblies, which aren't used at runtime.
+   emit no *new* `IL2026` warnings; the known, harmless ones are Avalonia's designer and
+   remote-protocol assemblies (not used at runtime), BCL `System.Data` DataSet/DataTable
+   warnings, and ~13 warnings from `SheetsAnalyticsService.cs`'s `JsonArray.Add<T>` calls
+   (passing `JsonObject`/`JsonNode` values — harmless because `Add<T>` short-circuits for
+   JsonNode values, and `GmapPlanner.App.csproj` re-enables reflection STJ for Playwright
+   anyway). Don't chase these; do chase anything else.
 
 ## UI
 
@@ -217,10 +223,14 @@ The driver ships as `.playwright/node/<platform>/` and Playwright execs it as a 
 file, which fights every default here. Publishing `osx-arm64` from a Windows box got
 this wrong three ways before the fixes in `GmapPlanner.Core.Publish.csproj` / `GmapPlanner.App.csproj`:
 
-1. **Library leaks the host driver.** `GmapPlanner.Core.Publish` holds the `Microsoft.Playwright`
-   PackageReference but builds RID-agnostic, so `Microsoft.Playwright.targets` resolved
-   the driver off the *build host* (win32_x64) and it rode into the mac publish. Core.Publish sets
+1. **Library leaks the host driver.** Any project that references Microsoft.Playwright, directly
+   or *transitively*, builds RID-agnostic, so `Microsoft.Playwright.targets` resolves the driver
+   off the *build host* (win32_x64 on Windows) and it rides into the mac publish. Every such
+   library — today `GmapPlanner.Core.Publish` (direct PackageReference) and `GmapPlanner.UI`
+   (transitive, via its project reference to Core.Publish) — sets
    `<PlaywrightPlatform>none</PlaywrightPlatform>` — a library bundles no driver; the app does.
+   The trap already reappeared once, when `GmapPlanner.UI` picked up Core.Publish as a dependency
+   and nobody set the property there.
 2. **App must map its RID.** `GmapPlanner.App` sets `PlaywrightPlatform` = `osx-arm64` /
    `win` from `$(RuntimeIdentifier)` so its build output holds the one correct driver.
    Left empty (a dev `dotnet run`) it falls through to the host driver, which is right for
@@ -232,7 +242,10 @@ this wrong three ways before the fixes in `GmapPlanner.Core.Publish.csproj` / `G
 
 Net: `win-x64` publish ships only `win32_x64`, `osx-arm64` ships only `darwin-arm64`, no
 cross-contamination. Verify a driver change by listing `publish/.playwright/node/` — it
-must contain exactly the target platform's folder plus `LICENSE`.
+must contain exactly the target platform's folder plus `LICENSE`. The check must be a
+cross-RID build from the *other* OS (e.g. build `osx-arm64` on Windows) — a same-host
+`win-x64` build on Windows can't reveal a leak, since the leaked driver and the correct
+one are the same platform.
 
 ## Releasing (phase 3)
 
