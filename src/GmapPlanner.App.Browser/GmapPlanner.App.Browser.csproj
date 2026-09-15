@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+
+  <!-- Browser host: the shared UI compiled to WebAssembly, served as static files (Vercel).
+       Build needs the wasm-tools-net8 workload (SkiaSharp/HarfBuzz native relink).
+       References GmapPlanner.UI only — never Core.Publish (no Playwright/Google.Apis in a browser). -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-browser</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Same size choice as the desktop app; no culture data needed. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Publish trims. SharpKml serializes by reflection over its own DOM (CLAUDE.md
+         trimming rule 3), so keep it whole; partial mode leaves untrimmable libraries alone. -->
+    <TrimMode>partial</TrimMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <TrimmerRootAssembly Include="SharpKml.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.5" />
+    <PackageReference Include="Avalonia.Browser" Version="11.2.5" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.5" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GmapPlanner.UI\GmapPlanner.UI.csproj" />
+  </ItemGroup>
+
+</Project>

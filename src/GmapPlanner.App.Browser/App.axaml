@@ -1,0 +1,10 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GmapPlanner.App.Browser.App"
+             RequestedThemeVariant="Dark">
+    <!-- Same design system as the desktop host (GmapPlanner.UI/Theme.axaml). -->
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source="avares://GmapPlanner.UI/Theme.axaml" />
+    </Application.Styles>
+</Application>
