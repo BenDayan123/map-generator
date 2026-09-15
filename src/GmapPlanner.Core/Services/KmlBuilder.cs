@@ -97,34 +97,55 @@ public static class KmlBuilder
         return new Kml { Feature = document };
     }
 
-    /// <summary>Writes each chunk to `{first}.kml` or `{first}-{last}.kml` under outputDir.</summary>
-    public static List<string> WriteKmlFiles(List<List<Day>> chunks, string outputDir)
+    /// <summary>
+    /// Serializes each chunk to an in-memory KML file named `{first}.kml` or `{first}-{last}.kml`.
+    /// UTF-8 without BOM, two-space indent — byte-identical to what <see cref="SaveKmlFiles"/> writes.
+    /// </summary>
+    public static List<KmlFile> BuildKmlFiles(List<List<Day>> chunks)
     {
-        Directory.CreateDirectory(outputDir);
-        var paths = new List<string>();
+        var files = new List<KmlFile>();
         foreach (var chunk in chunks)
         {
-            var kml = BuildKmlFile(chunk);
             var serializer = new Serializer();
-            serializer.Serialize(kml);
+            serializer.Serialize(BuildKmlFile(chunk));
 
             var first = chunk[0].DayNumber;
             var last = chunk[^1].DayNumber;
             var filename = first == last ? $"{first}.kml" : $"{first}-{last}.kml";
-            var path = Path.Combine(outputDir, filename);
 
-            var xdoc = XDocument.Parse(serializer.Xml);
-            using (var writer = XmlWriter.Create(path, new XmlWriterSettings
+            using var stream = new MemoryStream();
+            using (var writer = XmlWriter.Create(stream, new XmlWriterSettings
             {
                 Indent = true,
                 IndentChars = "  ",
                 Encoding = new UTF8Encoding(false),
             }))
             {
-                xdoc.Save(writer);
+                XDocument.Parse(serializer.Xml).Save(writer);
             }
+            files.Add(new KmlFile(filename, Encoding.UTF8.GetString(stream.ToArray())));
+        }
+        return files;
+    }
+
+    /// <summary>Writes in-memory KML files under outputDir; returns the written paths.</summary>
+    public static List<string> SaveKmlFiles(IEnumerable<KmlFile> files, string outputDir)
+    {
+        Directory.CreateDirectory(outputDir);
+        var paths = new List<string>();
+        foreach (var file in files)
+        {
+            var path = Path.Combine(outputDir, file.FileName);
+            File.WriteAllText(path, file.Content, new UTF8Encoding(false));
             paths.Add(path);
         }
         return paths;
     }
+
+    /// <summary>Writes each chunk to `{first}.kml` or `{first}-{last}.kml` under outputDir.</summary>
+    public static List<string> WriteKmlFiles(List<List<Day>> chunks, string outputDir) =>
+        SaveKmlFiles(BuildKmlFiles(chunks), outputDir);
 }
+
+/// <summary>A generated KML file held in memory (desktop saves it; the browser offers it as a download).</summary>
+public sealed record KmlFile(string FileName, string Content);

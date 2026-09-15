@@ -82,4 +82,49 @@ public class KmlBuilderTests
             if (Directory.Exists(outputDir)) Directory.Delete(outputDir, recursive: true);
         }
     }
+
+    [Fact]
+    public void BuildKmlFiles_NamesByDayRangeAndHoldsXmlInMemory()
+    {
+        var days = Enumerable.Range(1, 12)
+            .Select(n => new Day
+            {
+                DayNumber = n,
+                Locations = [new Location { Name = $"Place {n}", Lat = 35.0, Lng = 139.0 }],
+            })
+            .ToList();
+
+        var files = KmlBuilder.BuildKmlFiles(KmlBuilder.ChunkDays(days, layersPerFile: 10));
+
+        Assert.Equal(new[] { "1-10.kml", "11-12.kml" }, files.Select(f => f.FileName));
+        Assert.StartsWith("<?xml", files[0].Content);
+        Assert.Contains("utf-8", files[0].Content.Split('\n')[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Place 10", files[0].Content);
+        Assert.DoesNotContain("Place 11", files[0].Content);
+        Assert.Contains("Place 12", files[1].Content);
+    }
+
+    [Fact]
+    public void WriteKmlFiles_WritesExactlyTheInMemoryContent()
+    {
+        var days = new List<Day>
+        {
+            new() { DayNumber = 1, Locations = [new Location { Name = "שוק נישיקי, Kyoto", Lat = 35.005, Lng = 135.765 }] },
+        };
+        var chunks = KmlBuilder.ChunkDays(days, layersPerFile: 10);
+        var outputDir = Path.Combine(Path.GetTempPath(), "gmap-planner-tests-" + Guid.NewGuid());
+
+        try
+        {
+            var expected = Assert.Single(KmlBuilder.BuildKmlFiles(chunks));
+            var path = Assert.Single(KmlBuilder.WriteKmlFiles(chunks, outputDir));
+
+            Assert.Equal(expected.FileName, Path.GetFileName(path));
+            Assert.Equal(new System.Text.UTF8Encoding(false).GetBytes(expected.Content), File.ReadAllBytes(path));
+        }
+        finally
+        {
+            if (Directory.Exists(outputDir)) Directory.Delete(outputDir, recursive: true);
+        }
+    }
 }

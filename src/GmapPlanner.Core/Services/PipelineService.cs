@@ -11,18 +11,22 @@ public record PipelineResult
     public int Corrected { get; init; }
     public int Fallback { get; init; }
     public string? GeocodeWarning { get; init; }
+    public List<KmlFile> KmlFiles { get; init; } = [];
     public List<string> Files { get; init; } = [];
     public string OutputDir { get; init; } = "";
 }
 
 public delegate void ProgressCallback(string step, double fraction);
 
-/// <summary>Ports gmap_planner/service.py's run_pipeline: extract -> geocode -> write KML.</summary>
+/// <summary>Ports gmap_planner/service.py's run_pipeline: extract -> geocode -> build KML.</summary>
 public class PipelineService(GeminiExtractionService gemini, GeocodingService geocoding)
 {
-    public async Task<PipelineResult> RunAsync(
+    /// <summary>
+    /// Extract -> geocode -> KML, held in memory (the browser host offers the files as
+    /// downloads). Nothing is written to disk; Files and OutputDir stay empty.
+    /// </summary>
+    public async Task<PipelineResult> GenerateAsync(
         string filePath,
-        string outputDir,
         int layersPerFile = AppConfig.MaxLayersPerFile,
         bool noGeocode = false,
         ProgressCallback? progress = null,
@@ -42,13 +46,9 @@ public class PipelineService(GeminiExtractionService gemini, GeocodingService ge
             (corrected, fallback, geocodeWarning) = await geocoding.GeocodeItineraryAsync(trip, ct);
         }
 
-        progress?.Invoke("Writing KML files", 0.85);
-        var chunks = KmlBuilder.ChunkDays(trip.Days, layersPerFile);
-        var tripFolder = KmlBuilder.SanitizeFolderName(trip.TripName);
-        var tripDir = Path.Combine(outputDir, tripFolder);
-        var files = KmlBuilder.WriteKmlFiles(chunks, tripDir);
+        progress?.Invoke("Building KML files", 0.85);
+        var kmlFiles = KmlBuilder.BuildKmlFiles(KmlBuilder.ChunkDays(trip.Days, layersPerFile));
 
-        progress?.Invoke("Done", 1.0);
         return new PipelineResult
         {
             TripName = trip.TripName,
@@ -57,8 +57,25 @@ public class PipelineService(GeminiExtractionService gemini, GeocodingService ge
             Corrected = corrected,
             Fallback = fallback,
             GeocodeWarning = geocodeWarning,
-            Files = files,
-            OutputDir = tripDir,
+            KmlFiles = kmlFiles,
         };
+    }
+
+    /// <summary>Desktop path: <see cref="GenerateAsync"/>, then write the KML files under outputDir/{trip}.</summary>
+    public async Task<PipelineResult> RunAsync(
+        string filePath,
+        string outputDir,
+        int layersPerFile = AppConfig.MaxLayersPerFile,
+        bool noGeocode = false,
+        ProgressCallback? progress = null,
+        CancellationToken ct = default)
+    {
+        var result = await GenerateAsync(filePath, layersPerFile, noGeocode, progress, ct);
+
+        var tripDir = Path.Combine(outputDir, KmlBuilder.SanitizeFolderName(result.TripName));
+        var files = KmlBuilder.SaveKmlFiles(result.KmlFiles, tripDir);
+
+        progress?.Invoke("Done", 1.0);
+        return result with { Files = files, OutputDir = tripDir };
     }
 }
