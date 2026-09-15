@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using GmapPlanner.Core.Errors;
 using GmapPlanner.Core.Json;
@@ -6,12 +8,15 @@ using GmapPlanner.Core.Models;
 
 namespace GmapPlanner.Core.Services;
 
-/// <summary>Ports gmap_planner/geocode.py: snaps place names to exact coordinates.</summary>
+/// <summary>
+/// Snaps place names to exact coordinates via Places API (New) Text Search — a place-name
+/// search, unlike the Geocoding API, which is an address geocoder and mis-resolves POIs.
+/// </summary>
 public class GeocodingService(HttpClient http, string apiKey)
 {
-    // Geocoding API statuses that fail for EVERY request (bad/missing key, quota,
-    // billing) — no point hammering the rest of the itinerary once seen.
-    private static readonly HashSet<string> FatalStatuses = ["REQUEST_DENIED", "OVER_QUERY_LIMIT", "OVER_DAILY_LIMIT"];
+    // Error statuses that fail for EVERY request (API not enabled/billing/key restrictions,
+    // quota, bad key) — no point hammering the rest of the itinerary once seen.
+    private static readonly HashSet<string> FatalStatuses = ["PERMISSION_DENIED", "RESOURCE_EXHAUSTED", "UNAUTHENTICATED"];
 
     /// <summary>
     /// Resolves a place name to coordinates. Returns null on any recoverable failure.
@@ -21,40 +26,45 @@ public class GeocodingService(HttpClient http, string apiKey)
     {
         if (string.IsNullOrEmpty(name)) return null;
 
-        var url = $"{AppConfig.GeocodeUrl}?address={Uri.EscapeDataString(name)}&key={Uri.EscapeDataString(apiKey)}";
+        using var request = new HttpRequestMessage(HttpMethod.Post, AppConfig.PlacesTextSearchUrl)
+        {
+            Content = new StringContent(new JsonObject { ["textQuery"] = name }.ToJsonString(), Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Add("X-Goog-Api-Key", apiKey);
+        request.Headers.Add("X-Goog-FieldMask", AppConfig.PlacesFieldMask);
 
-        GeocodeResponseDto? payload;
+        PlacesSearchResponseDto? payload;
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(15));
-            payload = await http.GetFromJsonAsync(url, GmapPlannerJsonContext.Default.GeocodeResponseDto, cts.Token);
+            using var response = await http.SendAsync(request, cts.Token);
+            payload = await response.Content.ReadFromJsonAsync(GmapPlannerJsonContext.Default.PlacesSearchResponseDto, cts.Token);
         }
         catch (Exception e)
         {
-            Console.WriteLine($"  ! Geocoding API request failed for '{name}': {e.Message}");
+            Console.WriteLine($"  ! Places API request failed for '{name}': {e.Message}");
             return null;
         }
 
-        var status = payload?.Status;
-        if (status != "OK")
+        if (payload?.Error is { } error)
         {
-            var message = payload?.ErrorMessage ?? "";
-            if (status is not null && FatalStatuses.Contains(status))
+            var status = error.Status ?? "";
+            var message = error.Message ?? "";
+            // A bad key comes back as INVALID_ARGUMENT, which is otherwise per-request.
+            if (FatalStatuses.Contains(status) || message.Contains("API key", StringComparison.OrdinalIgnoreCase))
             {
                 var detail = string.IsNullOrEmpty(message) ? "" : $": {message}";
-                throw new PipelineException($"Geocoding API error [{status}]{detail}");
+                throw new PipelineException($"Places API error [{status}]{detail}");
             }
-            if (status != "ZERO_RESULTS" && status is not null)
-            {
-                Console.WriteLine($"  ! Geocoding API error for '{name}': {status} {message}".TrimEnd());
-            }
+            Console.WriteLine($"  ! Places API error for '{name}': {status} {message}".TrimEnd());
             return null;
         }
 
-        var location = payload?.Results?.FirstOrDefault()?.Geometry?.Location;
-        if (location?.Lat is null || location.Lng is null) return null;
-        return (location.Lat.Value, location.Lng.Value);
+        // No match is an empty body ({}), not an error status.
+        var location = payload?.Places?.FirstOrDefault()?.Location;
+        if (location?.Latitude is null || location.Longitude is null) return null;
+        return (location.Latitude.Value, location.Longitude.Value);
     }
 
     /// <summary>
@@ -72,7 +82,7 @@ public class GeocodingService(HttpClient http, string apiKey)
 
         if (string.IsNullOrEmpty(apiKey))
         {
-            const string msg = "Geocoding skipped: no Geocoding API key set. Keeping Gemini's coordinates.";
+            const string msg = "Geocoding skipped: no Places API key set. Keeping Gemini's coordinates.";
             Console.WriteLine($"  ! {msg}");
             return (0, locations.Count, msg);
         }
@@ -107,25 +117,32 @@ public class GeocodingService(HttpClient http, string apiKey)
     }
 }
 
-internal record GeocodeResponseDto
+internal record PlacesSearchResponseDto
+{
+    [JsonPropertyName("places")] public List<PlaceDto>? Places { get; init; }
+    [JsonPropertyName("error")] public PlacesErrorDto? Error { get; init; }
+}
+
+internal record PlaceDto
+{
+    [JsonPropertyName("id")] public string? Id { get; init; }
+    [JsonPropertyName("displayName")] public PlaceDisplayNameDto? DisplayName { get; init; }
+    [JsonPropertyName("location")] public PlaceLocationDto? Location { get; init; }
+}
+
+internal record PlaceDisplayNameDto
+{
+    [JsonPropertyName("text")] public string? Text { get; init; }
+}
+
+internal record PlaceLocationDto
+{
+    [JsonPropertyName("latitude")] public double? Latitude { get; init; }
+    [JsonPropertyName("longitude")] public double? Longitude { get; init; }
+}
+
+internal record PlacesErrorDto
 {
     [JsonPropertyName("status")] public string? Status { get; init; }
-    [JsonPropertyName("error_message")] public string? ErrorMessage { get; init; }
-    [JsonPropertyName("results")] public List<GeocodeResultDto>? Results { get; init; }
-}
-
-internal record GeocodeResultDto
-{
-    [JsonPropertyName("geometry")] public GeocodeGeometryDto? Geometry { get; init; }
-}
-
-internal record GeocodeGeometryDto
-{
-    [JsonPropertyName("location")] public GeocodeLocationDto? Location { get; init; }
-}
-
-internal record GeocodeLocationDto
-{
-    [JsonPropertyName("lat")] public double? Lat { get; init; }
-    [JsonPropertyName("lng")] public double? Lng { get; init; }
+    [JsonPropertyName("message")] public string? Message { get; init; }
 }

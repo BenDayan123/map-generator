@@ -353,7 +353,7 @@ public partial class MainViewModel : ViewModelBase
                 1 => "\nresets tomorrow",
                 var d => $"\nresets in {d} days",
             };
-            UsageSubText = $"Geocoding · this month\n{gauge.Used:N0} / {gauge.Limit:N0}{reset}";
+            UsageSubText = $"Places API · this month\n{gauge.Used:N0} / {gauge.Limit:N0}{reset}";
             HasUsage = true;
         }
         finally

@@ -8,7 +8,11 @@ public static class AppConfig
     /// <summary>Google My Maps allows at most 10 layers per map (one KML file = one map).</summary>
     public const int MaxLayersPerFile = 10;
 
-    public const string GeocodeUrl = "https://maps.googleapis.com/maps/api/geocode/json";
+    /// <summary>Places API (New) Text Search — resolves "place, city" names to coordinates.</summary>
+    public const string PlacesTextSearchUrl = "https://places.googleapis.com/v1/places:searchText";
+
+    /// <summary>Only the fields we read; the mask also sets the billed SKU (Text Search Pro).</summary>
+    public const string PlacesFieldMask = "places.displayName,places.id,places.location";
 
     /// <summary>owner/repo the in-app updater checks for new releases.</summary>
     public const string GithubRepo = "BenDayan123/map-generator";
@@ -55,13 +59,14 @@ public static class AppConfig
     public static string DriveCredentialsFile => AppDataPaths.DataPath("credentials.json");
     public static string DriveTokenDir => AppDataPaths.DataPath("drive-token");
 
-    // --- Geocoding usage gauge (Cloud Monitoring) -----------------------------
-    // Reads the real Geocoding request count for the month and shows it as
+    // --- Places API usage gauge (Cloud Monitoring) ----------------------------
+    // Reads the real Places API (New) request count for the month and shows it as
     // "percent of quota used". Needs a service account with roles/monitoring.viewer
     // and the Cloud Monitoring API enabled; degrades to hidden when not configured.
-    public const int GeoMonthlyLimit = 10000;
+    // 5,000 = the monthly free cap for Text Search Pro (the SKU PlacesFieldMask bills).
+    public const int GeoMonthlyLimit = 5000;
     public const string MonitoringScope = "https://www.googleapis.com/auth/monitoring.read";
-    public const string GeocodeService = "geocoding-backend.googleapis.com";
+    public const string GeocodeService = "places.googleapis.com";
 
     /// <summary>Cloud Monitoring timeSeries endpoint; {0} is the GCP project id.</summary>
     public const string MonitoringTimeSeriesUrl =

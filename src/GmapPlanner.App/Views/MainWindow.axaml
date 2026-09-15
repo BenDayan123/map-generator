@@ -60,7 +60,7 @@
 
                     <Separator Margin="0,14" Background="{StaticResource HairlineBrush}" />
 
-                    <!-- Geocoding usage ring (hidden until a service account is configured).
+                    <!-- Places API usage ring (hidden until a service account is configured).
                          Canvas so the track ellipse and progress arc share one absolute
                          140×140 coordinate space (a laid-out Path would auto-center and drift). -->
                     <StackPanel IsVisible="{Binding HasUsage}" Spacing="4">
@@ -257,7 +257,7 @@
                             </Border>
                         </Grid>
 
-                        <!-- Geocoding warning: e.g. billing not enabled, or no Geo key. -->
+                        <!-- Geocoding warning: e.g. Places API not enabled, or no Places key. -->
                         <Border Classes="card" BorderBrush="{StaticResource WarnBrush}" Background="#1FF59E0B"
                                 IsVisible="{Binding GeocodeWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                             <TextBlock TextWrapping="Wrap" Foreground="{StaticResource WarnBrush}">
@@ -441,9 +441,9 @@
 
                     <Border Classes="card">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="Geocoding API key" />
+                            <TextBlock Classes="subhead" Text="Places API (New) key" />
                             <TextBlock Classes="caption"
-                                       Text="Snaps each place name to its exact Google Maps coordinates. Without it, Gemini's rougher coordinates are used." />
+                                       Text="Snaps each place name to its exact Google Maps coordinates via Places API (New) Text Search — enable &quot;Places API (New)&quot; on the key's project. Without it, Gemini's rougher coordinates are used." />
                             <Grid>
                                 <TextBox Name="GeoKeyBox" PasswordChar="•" Text="{Binding GeoApiKey}"
                                          Padding="8,6,40,6" Watermark="AIza…" />
@@ -460,7 +460,7 @@
                         <StackPanel Spacing="8">
                             <TextBlock Classes="subhead" Text="Usage gauge (optional)" />
                             <TextBlock Classes="caption"
-                                       Text="Paste the service-account JSON to show the live Geocoding-usage ring — the project is read from it. Needs the Cloud Monitoring API enabled and a service account with roles/monitoring.viewer." />
+                                       Text="Paste the service-account JSON to show the live Places API usage ring — the project is read from it. Needs the Cloud Monitoring API enabled and a service account with roles/monitoring.viewer." />
                             <TextBox AcceptsReturn="True" Height="90" TextWrapping="Wrap"
                                      Text="{Binding GcpSaJson}"
                                      Watermark="Paste the whole service-account .json here" />
@@ -501,7 +501,7 @@
                             </TextBlock>
                             <TextBlock>
                                 <Run Text="{Binding HasGeoKey, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="Geocoding API key" />
+                                <Run Text="Places API (New) key" />
                             </TextBlock>
                             <TextBlock>
                                 <Run Text="{Binding HasGoogleLogin, Converter={x:Static vm:BoolTick.Instance}}" />

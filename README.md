@@ -11,7 +11,7 @@ cross-platform desktop app.
 
 1. **Extract** — drop in an itinerary (`.txt`, `.pdf`, or paste text) and Gemini pulls out
    days, places, and notes as structured JSON.
-2. **Geocode** — each place is resolved to coordinates via the Google Geocoding API.
+2. **Geocode** — each place is resolved to coordinates via Google Places API (New) Text Search.
 3. **Generate** — a KML file per map (days are split across files by a configurable
    days-per-map limit), with per-day colors and numbered pins.
 4. **Publish (optional)** — imports each KML straight into Google My Maps via a real browser
@@ -23,7 +23,7 @@ cross-platform desktop app.
 
 - **.NET 8**, **Avalonia UI** (MVVM, compiled bindings)
 - **Gemini** (`generateContent` REST, JSON-schema constrained output) for extraction
-- **Google Geocoding API** for coordinates
+- **Google Places API (New)** (Text Search) for coordinates
 - **SharpKml** for KML generation
 - **Playwright** for My Maps automation (browser not bundled — fetched on first publish)
 - **Google Drive API** for sharing, **Google Sheets API** for analytics
@@ -39,7 +39,7 @@ dotnet run --project src/GmapPlanner.App
 
 On first run, open **Settings** and provide:
 - a Gemini API key
-- a Google Geocoding API key
+- a Google API key with Places API (New) enabled
 - an output folder for generated KML files
 
 Optional, for extra features:

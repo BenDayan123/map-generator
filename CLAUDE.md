@@ -121,10 +121,12 @@ take the process down instead of showing up in the error banner.
   constrained output, retry-once on an unusable body (`BadResponseException`), no
   retry on a failed request (plain `PipelineException`). `.txt` goes in inline; other
   files go through the Files API resumable-upload flow (currently just `.pdf`).
-- **`GeocodingService`** — mirrors `geocode.py`'s fatal-vs-recoverable status split:
-  `REQUEST_DENIED`/`OVER_QUERY_LIMIT`/`OVER_DAILY_LIMIT` abort the whole itinerary
-  (keeping Gemini's coordinates for whatever's left); anything else falls back
-  per-location.
+- **`GeocodingService`** — now calls **Places API (New)** Text Search (`POST places:searchText`,
+  `X-Goog-FieldMask: places.displayName,places.id,places.location`) instead of the Geocoding
+  API, which is an address geocoder and mis-pinned named POIs (wrong city / unrelated shop).
+  Keeps `geocode.py`'s fatal-vs-recoverable split (fatal = `PERMISSION_DENIED`/`RESOURCE_EXHAUSTED`/
+  `UNAUTHENTICATED` or a bad key) aborts the whole itinerary (keeping Gemini's coordinates
+  for whatever's left); anything else, including no match, falls back per-location.
 - **`KmlBuilder`** — uses `SharpKml.Core` instead of hand-rolled XML. Same pin-icon
   URL scheme (`mt.google.com/vt/icon`, 3-layer stack, `psize` shrinks as digits grow),
   same per-day colors (`AppConfig.DayColors`), same `{first}.kml` / `{first}-{last}.kml`
@@ -138,8 +140,8 @@ take the process down instead of showing up in the error banner.
   written. This is the one-drop fix for "credentials.json not found" when sharing.
 - **`UsageService`** — ports `usage.py`: a service-account token (via
   `GoogleCredential`, no monitoring SDK) plus a raw Cloud Monitoring `timeSeries` query
-  for `geocoding-backend.googleapis.com` request_count this month → percent of
-  `GeoMonthlyLimit`. Best-effort; returns null (ring hidden) on any failure.
+  for `places.googleapis.com` request_count this month → percent of
+  `GeoMonthlyLimit` (5,000 — Text Search Pro free cap). Best-effort; returns null (ring hidden) on any failure.
 
 ## Publishing to My Maps (phase 2)
 

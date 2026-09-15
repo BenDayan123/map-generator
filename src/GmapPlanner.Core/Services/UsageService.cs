@@ -11,7 +11,7 @@ namespace GmapPlanner.Core.Services;
 public record UsageGauge(int Used, int Limit, double Percent, int? ResetDays);
 
 /// <summary>
-/// Ports gmap_planner/usage.py: reads the real Geocoding request count for the current
+/// Ports gmap_planner/usage.py: reads the real Places API (New) request count for the current
 /// month from Cloud Monitoring and turns it into a percent-of-quota gauge. Everything is
 /// best-effort — any failure (no service account, Monitoring API off, network) returns
 /// null so the UI hides the gauge instead of erroring.
@@ -30,7 +30,7 @@ public class UsageService(HttpClient http)
         return TimeZoneInfo.Utc; // last resort; the gauge is best-effort anyway
     }
 
-    /// <summary>Geocoding usage this month, or null if it can't be read.</summary>
+    /// <summary>Places API usage this month, or null if it can't be read.</summary>
     public async Task<UsageGauge?> GetGeocodeUsageAsync(
         string serviceAccountJson, int monthlyLimit = AppConfig.GeoMonthlyLimit, CancellationToken ct = default)
     {
