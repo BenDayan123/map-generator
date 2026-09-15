@@ -39,13 +39,21 @@ export default async function handler(req: Request): Promise<Response> {
   if (pre) return pre;
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
+  let saJson: SaJson;
+  let sheetId: string;
   try {
-    const { saJson, sheetId } = await readJson<{ saJson: SaJson; sheetId: string }>(req);
-    if (!saJson?.client_email || !sheetId) return json({ error: "bad input" }, 400);
+    const body = await readJson<{ saJson: SaJson; sheetId: string }>(req);
+    saJson = body?.saJson;
+    sheetId = body?.sheetId;
+  } catch {
+    return json({ error: "bad input" }, 400);
+  }
+  if (!saJson?.client_email || !sheetId || typeof sheetId !== "string") return json({ error: "bad input" }, 400);
 
-    const id = sheetIdOf(sheetId);
-    if (!id) return json({ error: "bad input" }, 400);
+  const id = sheetIdOf(sheetId);
+  if (!id) return json({ error: "bad input" }, 400);
 
+  try {
     const token = await getAccessToken(
       saJson as { client_email: string; private_key: string; token_uri?: string },
       SCOPE,
