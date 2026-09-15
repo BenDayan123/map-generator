@@ -297,13 +297,15 @@ one are the same platform.
 - **Trimming:** the WASM publish trims (`TrimMode=partial`, `SharpKml.Core` rooted); the same
   source-gen JSON rule applies.
 - **Deploy:** `.github/workflows/web.yml` builds with SDK 10 + the `wasm-tools-net8` workload
-  (the net8.0-browser app targets net8; SDK 10 ships that wasm workload) and uploads
-  `publish/browser/wwwroot` with a pinned `vercel@59 deploy` (main → production, other branches
-  → preview). Needs repo secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. The Vercel
-  project must **not** be connected to the Git repository — Vercel's own build can't compile WASM.
-  Create it with `npx vercel project add`, and in its dashboard Settings keep Framework Preset
-  **Other**, **no** Build Command, and an **empty** Root Directory — the CLI uploads a
-  pre-built `wwwroot`, so any Vercel-side build would just fail.
+  (the net8.0-browser app targets net8; SDK 10 ships that wasm workload) and assembles
+  `web/public/` from the published `wwwroot`; a pinned `vercel@59 deploy` then ships the whole
+  `web/` root (main → production, other branches → preview) — see "Cloud API (phase 3)" below
+  for how the API functions ride along. Needs repo secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`,
+  `VERCEL_PROJECT_ID`. The Vercel project must **not** be connected to the Git repository —
+  Vercel's own build can't compile WASM. Create it with `npx vercel project add`, and in its
+  dashboard Settings keep Framework Preset **Other**, **no** Build Command, and an **empty**
+  Root Directory — the CLI deploys a pre-built `web/` directory, so any Vercel-side build
+  would just fail.
 
 ### Cloud API (phase 3)
 
