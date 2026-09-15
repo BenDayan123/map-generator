@@ -14,7 +14,12 @@ namespace GmapPlanner.Core.Services.Gemini;
 /// generativelanguage.googleapis.com), with structured JSON output and one retry on
 /// an unusable response body.
 /// </summary>
-public class GeminiExtractionService(HttpClient http, string apiKey, string? promptOverride = null)
+/// <param name="inlineFiles">
+/// Send PDFs as base64 inline_data instead of the Files API upload. The browser host needs
+/// this: the upload flow reads the X-Goog-Upload-URL response header, which a cross-origin
+/// fetch can't see. Inline requests are capped at 20 MB by Gemini.
+/// </param>
+public class GeminiExtractionService(HttpClient http, string apiKey, string? promptOverride = null, bool inlineFiles = false)
 {
     private const string BaseUrl = "https://generativelanguage.googleapis.com";
 
@@ -64,7 +69,25 @@ public class GeminiExtractionService(HttpClient http, string apiKey, string? pro
 
     public async Task<Trip> ExtractItineraryAsync(string filePath, CancellationToken ct = default)
     {
-        var parts = await BuildContentPartsAsync(filePath, ct);
+        byte[] content;
+        try
+        {
+            content = await File.ReadAllBytesAsync(filePath, ct);
+        }
+        catch (Exception e)
+        {
+            throw new PipelineException($"Failed to read '{filePath}': {e.Message}", e);
+        }
+        return await ExtractItineraryAsync(Path.GetFileName(filePath), content, ct);
+    }
+
+    /// <summary>
+    /// Extracts from an itinerary already in memory. <paramref name="fileName"/> only picks the
+    /// type (.txt / .pdf) and names the upload.
+    /// </summary>
+    public async Task<Trip> ExtractItineraryAsync(string fileName, byte[] content, CancellationToken ct = default)
+    {
+        var parts = await BuildContentPartsAsync(fileName, content, ct);
 
         PipelineException last = new("Gemini API (location extraction) was never called.");
         for (var attempt = 0; attempt < Attempts; attempt++)
@@ -81,35 +104,46 @@ public class GeminiExtractionService(HttpClient http, string apiKey, string? pro
         throw last;
     }
 
-    private async Task<List<JsonObject>> BuildContentPartsAsync(string filePath, CancellationToken ct)
+    private async Task<List<JsonObject>> BuildContentPartsAsync(string fileName, byte[] content, CancellationToken ct)
     {
         var promptPart = new JsonObject { ["text"] = PromptText };
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
 
-        if (ext == ".txt")
+        if (Path.GetExtension(fileName).Equals(".txt", StringComparison.OrdinalIgnoreCase))
         {
-            string text;
-            try
-            {
-                text = await File.ReadAllTextAsync(filePath, Encoding.UTF8, ct);
-            }
-            catch (Exception e)
-            {
-                throw new PipelineException($"Failed to read '{filePath}': {e.Message}", e);
-            }
-            return [promptPart, new JsonObject { ["text"] = text }];
+            // Same decoding File.ReadAllTextAsync did: UTF-8, honouring (and dropping) a BOM.
+            using var reader = new StreamReader(new MemoryStream(content), Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            return [promptPart, new JsonObject { ["text"] = await reader.ReadToEndAsync(ct) }];
         }
 
-        var (uri, mimeType) = await UploadFileAsync(filePath, ct);
+        var mimeType = MimeTypeOf(fileName);
+        if (inlineFiles)
+        {
+            return
+            [
+                promptPart,
+                new JsonObject
+                {
+                    ["inline_data"] = new JsonObject { ["mime_type"] = mimeType, ["data"] = Convert.ToBase64String(content) },
+                },
+            ];
+        }
+
+        var (uri, uploadedMimeType) = await UploadFileAsync(fileName, mimeType, content, ct);
         return
         [
             promptPart,
             new JsonObject
             {
-                ["file_data"] = new JsonObject { ["mime_type"] = mimeType, ["file_uri"] = uri },
+                ["file_data"] = new JsonObject { ["mime_type"] = uploadedMimeType, ["file_uri"] = uri },
             },
         ];
     }
+
+    private static string MimeTypeOf(string fileName) => Path.GetExtension(fileName).ToLowerInvariant() switch
+    {
+        ".pdf" => "application/pdf",
+        _ => throw new PipelineException($"Unsupported file type for Gemini upload: '{fileName}' (expected .txt or .pdf)."),
+    };
 
     private async Task<Trip> ExtractOnceAsync(List<JsonObject> parts, CancellationToken ct)
     {
@@ -195,23 +229,8 @@ public class GeminiExtractionService(HttpClient http, string apiKey, string? pro
         };
     }
 
-    private async Task<(string Uri, string MimeType)> UploadFileAsync(string filePath, CancellationToken ct)
+    private async Task<(string Uri, string MimeType)> UploadFileAsync(string displayName, string mimeType, byte[] bytes, CancellationToken ct)
     {
-        var mimeType = Path.GetExtension(filePath).ToLowerInvariant() switch
-        {
-            ".pdf" => "application/pdf",
-            _ => throw new PipelineException($"Unsupported file type for Gemini upload: '{filePath}' (expected .txt or .pdf)."),
-        };
-        var displayName = Path.GetFileName(filePath);
-        byte[] bytes;
-        try
-        {
-            bytes = await File.ReadAllBytesAsync(filePath, ct);
-        }
-        catch (Exception e)
-        {
-            throw new PipelineException($"Gemini Files API failed to upload '{displayName}': {e.Message}", e);
-        }
 
         var metadata = new JsonObject
         {

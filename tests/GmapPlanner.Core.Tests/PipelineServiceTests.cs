@@ -46,6 +46,15 @@ public class PipelineServiceTests
     }
 
     [Fact]
+    public async Task GenerateAsync_FromBytes_NeedsNoFileOnDisk()
+    {
+        var result = await Pipeline().GenerateAsync("itinerary.txt", "Day 1: Kyoto. Day 2: Tokyo."u8.ToArray(), layersPerFile: 10);
+
+        Assert.Equal("Tokyo/Kyoto Trip", result.TripName);
+        Assert.Equal("1-2.kml", Assert.Single(result.KmlFiles).FileName);
+    }
+
+    [Fact]
     public async Task RunAsync_SavesTheGeneratedKmlUnderTheTripFolder()
     {
         var txtPath = await TempTxt();

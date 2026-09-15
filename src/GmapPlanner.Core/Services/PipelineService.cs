@@ -25,15 +25,29 @@ public class PipelineService(GeminiExtractionService gemini, GeocodingService ge
     /// Extract -> geocode -> KML, held in memory (the browser host offers the files as
     /// downloads). Nothing is written to disk; Files and OutputDir stay empty.
     /// </summary>
-    public async Task<PipelineResult> GenerateAsync(
+    public Task<PipelineResult> GenerateAsync(
         string filePath,
         int layersPerFile = AppConfig.MaxLayersPerFile,
         bool noGeocode = false,
         ProgressCallback? progress = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default) =>
+        BuildAsync(() => gemini.ExtractItineraryAsync(filePath, ct), layersPerFile, noGeocode, progress, ct);
+
+    /// <summary>Same as the path overload, for an itinerary already in memory (the browser host).</summary>
+    public Task<PipelineResult> GenerateAsync(
+        string fileName,
+        byte[] content,
+        int layersPerFile = AppConfig.MaxLayersPerFile,
+        bool noGeocode = false,
+        ProgressCallback? progress = null,
+        CancellationToken ct = default) =>
+        BuildAsync(() => gemini.ExtractItineraryAsync(fileName, content, ct), layersPerFile, noGeocode, progress, ct);
+
+    private async Task<PipelineResult> BuildAsync(
+        Func<Task<Models.Trip>> extract, int layersPerFile, bool noGeocode, ProgressCallback? progress, CancellationToken ct)
     {
         progress?.Invoke("Extracting locations with Gemini", 0.35);
-        var trip = await gemini.ExtractItineraryAsync(filePath, ct);
+        var trip = await extract();
         if (trip.Days.Count == 0)
             throw new PipelineException("No days found in the extracted itinerary.");
 
