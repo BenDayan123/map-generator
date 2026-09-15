@@ -1,0 +1,235 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Shared design system for every host (desktop window, browser). Tokens live in
+         Styles.Resources so {StaticResource} lookups resolve app-wide once a host includes
+         this file after <FluentTheme />. Dark-first: hosts set RequestedThemeVariant="Dark". -->
+    <Styles.Resources>
+        <ResourceDictionary>
+            <!-- ============ DESIGN TOKENS (slate + route-blue dark) ============ -->
+            <!-- Surfaces: layered by lightness, not shadows (crisper on desktop). -->
+            <SolidColorBrush x:Key="BgBrush"         Color="#0B1120" />
+            <SolidColorBrush x:Key="SidebarBrush"    Color="#0E1626" />
+            <SolidColorBrush x:Key="CardBrush"       Color="#141E33" />
+            <SolidColorBrush x:Key="CardHoverBrush"  Color="#1B2740" />
+            <SolidColorBrush x:Key="HairlineBrush"   Color="#24314D" />
+
+            <!-- Text: softened white, not pure #FFF (less glare on dark). -->
+            <SolidColorBrush x:Key="TextPrimaryBrush"   Color="#E6EDF7" />
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#A7B4C9" />
+            <SolidColorBrush x:Key="MutedBrush"         Color="#7F8CA3" />
+            <SolidColorBrush x:Key="IconBrush"          Color="#A7B4C9" />
+
+            <!-- Accent + semantic (bright 400-tones read on the dark canvas). -->
+            <SolidColorBrush x:Key="AccentBrush"      Color="#2563EB" />
+            <SolidColorBrush x:Key="AccentHoverBrush" Color="#3B82F6" />
+            <SolidColorBrush x:Key="AccentSoftBrush"  Color="#232563EB" />
+            <SolidColorBrush x:Key="SuccessBrush"     Color="#4ADE80" />
+            <SolidColorBrush x:Key="WarnBrush"        Color="#FBBF24" />
+            <SolidColorBrush x:Key="DangerBrush"      Color="#F87171" />
+            <SolidColorBrush x:Key="InfoBrush"        Color="#38BDF8" />
+
+            <!-- Wire FluentTheme's accent-driven controls (ProgressBar, Slider thumb,
+                 ToggleSwitch on-state, focus ring) to the route blue. -->
+            <Color x:Key="SystemAccentColor">#2563EB</Color>
+            <Color x:Key="SystemAccentColorDark1">#1D4ED8</Color>
+            <Color x:Key="SystemAccentColorDark2">#1E40AF</Color>
+            <Color x:Key="SystemAccentColorDark3">#1E3A8A</Color>
+            <Color x:Key="SystemAccentColorLight1">#3B82F6</Color>
+            <Color x:Key="SystemAccentColorLight2">#60A5FA</Color>
+            <Color x:Key="SystemAccentColorLight3">#93C5FD</Color>
+
+            <!-- ============ ICONS (Lucide-style, stroked) ============ -->
+            <StreamGeometry x:Key="IconPin">M12 21s6-5.686 6-10a6 6 0 1 0-12 0c0 4.314 6 10 6 10z M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</StreamGeometry>
+            <StreamGeometry x:Key="IconSettings">M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</StreamGeometry>
+            <StreamGeometry x:Key="IconFile">M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5</StreamGeometry>
+            <StreamGeometry x:Key="IconFolder">M3 7a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.66.9l.84 1.2a1 1 0 0 0 .83.4H19a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z</StreamGeometry>
+            <StreamGeometry x:Key="IconGlobe">M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M3 12h18 M12 3a15 15 0 0 1 0 18 M12 3a15 15 0 0 0 0 18</StreamGeometry>
+            <StreamGeometry x:Key="IconLock">M6 10h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z M8 10V7a4 4 0 0 1 8 0v3</StreamGeometry>
+            <StreamGeometry x:Key="IconBox">M12 2l8 4.5v9L12 20l-8-4.5v-9z M4 6.5l8 4.5 8-4.5 M12 11v9</StreamGeometry>
+            <StreamGeometry x:Key="IconUpload">M12 15V3 M7 8l5-5 5 5 M5 21h14</StreamGeometry>
+            <StreamGeometry x:Key="IconDownload">M12 3v12 M7 12l5 5 5-5 M5 21h14</StreamGeometry>
+            <StreamGeometry x:Key="IconEye">M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</StreamGeometry>
+            <StreamGeometry x:Key="IconChart">M3 3v18h18 M7 16v-5 M12 16V8 M17 16v-9</StreamGeometry>
+        </ResourceDictionary>
+    </Styles.Resources>
+
+        <!-- ============ TYPOGRAPHY + COMPONENT STYLES ============ -->
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        </Style>
+
+        <Style Selector="TextBlock.h1">
+            <Setter Property="FontSize" Value="24" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="-0.2" />
+        </Style>
+
+        <!-- Small, tracked, uppercase section labels — the main hierarchy lift. -->
+        <Style Selector="TextBlock.sideHeader">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="LetterSpacing" Value="0.8" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+
+        <Style Selector="TextBlock.subhead">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style Selector="TextBlock.caption">
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="LineHeight" Value="18" />
+        </Style>
+
+        <Style Selector="TextBlock.metricLabel">
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="0.6" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+        </Style>
+        <Style Selector="TextBlock.metricValue">
+            <Setter Property="FontSize" Value="28" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <!-- Stroked icons: outline geometries, so stroke (not fill). -->
+        <Style Selector="Path.icon">
+            <Setter Property="Stroke" Value="{StaticResource IconBrush}" />
+            <Setter Property="StrokeThickness" Value="1.75" />
+            <Setter Property="StrokeLineCap" Value="Round" />
+            <Setter Property="StrokeJoin" Value="Round" />
+            <Setter Property="Fill" Value="Transparent" />
+            <Setter Property="Stretch" Value="Uniform" />
+        </Style>
+
+        <!-- Cards: give every surface a real, subtly-bordered panel (was transparent). -->
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{StaticResource CardBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="16" />
+        </Style>
+
+        <Style Selector="Button">
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+
+        <!-- Sidebar nav: flat, full width, rounded hover. -->
+        <Style Selector="Button.nav">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="10,9" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+        <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource CardHoverBrush}" />
+        </Style>
+
+        <!-- Primary CTA. -->
+        <Style Selector="Button.accent">
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.accent /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+        <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource AccentHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AccentHoverBrush}" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+        <Style Selector="Button.accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+
+        <!-- ============ EMAIL TOKEN INPUT ============ -->
+        <!-- The bordered box that holds the chips + the typing field. -->
+        <Style Selector="Border.tokenBox">
+            <Setter Property="Background" Value="{StaticResource CardBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="7,7,7,1" />
+            <Setter Property="MinHeight" Value="44" />
+        </Style>
+        <Style Selector="Border.tokenBox:pointerover">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+        </Style>
+
+        <!-- One email pill. -->
+        <Style Selector="Border.chip">
+            <Setter Property="Background" Value="#22315A" />
+            <Setter Property="BorderBrush" Value="#33538CE0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="13" />
+            <Setter Property="Padding" Value="10,3,6,3" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+        </Style>
+        <Style Selector="Border.chip TextBlock">
+            <Setter Property="Foreground" Value="#CFDDF7" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <!-- The little × on each chip. -->
+        <Style Selector="Button.chipClose">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="3,0" />
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="#8FA6CE" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="Button.chipClose:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#3A4E7A" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+
+        <!-- Borderless field that sits inline with the chips. -->
+        <Style Selector="TextBox.tokenEntry">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="MinWidth" Value="140" />
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="Margin" Value="2,0,0,6" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBox.tokenEntry:focus /template/ Border#PART_BorderElement">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="TextBox.tokenEntry:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <!-- Hold-to-reveal eye, overlaid at the right edge of a password TextBox. -->
+        <Style Selector="Button.eye">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="Width" Value="36" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTip.Tip" Value="Hold to reveal" />
+        </Style>
+        <Style Selector="Button.eye /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.eye:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+</Styles>

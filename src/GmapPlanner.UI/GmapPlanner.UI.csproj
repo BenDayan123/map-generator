@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared Avalonia UI: MainView, view models, and the design system (Theme.axaml).
+       Hosted by the desktop exe (GmapPlanner.App) today and by the browser host in phase 2.
+       Namespaces stay GmapPlanner.App.* so XAML xmlns and usings didn't have to move. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.5" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.5" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GmapPlanner.Core\GmapPlanner.Core.csproj" />
+    <ProjectReference Include="..\GmapPlanner.Core.Publish\GmapPlanner.Core.Publish.csproj" />
+  </ItemGroup>
+
+</Project>

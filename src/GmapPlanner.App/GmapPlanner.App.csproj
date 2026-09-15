@@ -63,12 +63,10 @@
       <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\GmapPlanner.Core\GmapPlanner.Core.csproj" />
-    <ProjectReference Include="..\GmapPlanner.Core.Publish\GmapPlanner.Core.Publish.csproj" />
+    <ProjectReference Include="..\GmapPlanner.UI\GmapPlanner.UI.csproj" />
   </ItemGroup>
 
   <!-- Single-file publish strips Playwright's node/<platform> driver from the loose

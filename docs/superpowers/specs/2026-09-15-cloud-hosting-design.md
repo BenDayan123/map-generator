@@ -59,11 +59,12 @@ GitHub Actions — private worker repo (workflow + secrets only)
   state) next to the existing persistent-profile launch, and exposes the context's refreshed
   storage state after a run. It reports `SESSION_EXPIRED` when the editor redirects to Google sign-in.
 
-### `GmapPlanner.App` (split)
-- **`GmapPlanner.App`** (shared) — `MainView` (`UserControl`, current `MainWindow` content),
+### UI projects
+- **`GmapPlanner.UI`** (shared) — `MainView` (`UserControl`, current `MainWindow` content),
   view models, converters, resources. File pickers / drag & drop go through `TopLevel.StorageProvider`
   so they work in both hosts.
-- **`GmapPlanner.App.Desktop`** — current `Window` host, unchanged behaviour, owns `PublishTrimmed`
+- **`GmapPlanner.App`** (desktop host, path and assembly name unchanged so packaging is untouched) —
+  current `Window` host, unchanged behaviour, owns `PublishTrimmed`
   single-file publish and the Playwright driver targets moved from today's App csproj.
 - **`GmapPlanner.App.Browser`** — WASM host (`ISingleViewApplicationLifetime`). Replaces:
   output folder → per-file Download buttons; local publish → cloud job; desktop-only Settings
@@ -194,7 +195,7 @@ setup .NET 8, `playwright install chromium` fallback, run Worker, `if: failure()
 
 Each phase leaves the app working.
 
-1. Split `Core` → `Core` + `Core.Publish`; split `App` → `App` + `App.Desktop`; in-memory KML
+1. Split `Core` → `Core` + `Core.Publish`; extract shared UI into `GmapPlanner.UI` (desktop host stays `GmapPlanner.App`); in-memory KML
    from `PipelineService`. Desktop behaviour unchanged, tests green.
 2. `App.Browser`: WASM host, browser settings storage, client-side generation, KML downloads,
    PDF CORS check. Deploy static site to Vercel.

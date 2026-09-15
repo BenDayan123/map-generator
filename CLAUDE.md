@@ -44,9 +44,11 @@ src/
       UsageService.cs        # Cloud Monitoring usage ring
       SheetsAnalyticsService.cs
     Json/PublishJsonContext.cs
-  GmapPlanner.App/            # Avalonia MVVM desktop app
+  GmapPlanner.UI/             # shared Avalonia UI (desktop today, browser in phase 2)
+    Theme.axaml               # design tokens + component styles; hosts include it after FluentTheme
     ViewModels/MainViewModel.cs
-    Views/MainWindow.axaml(.cs)
+    Views/MainView.axaml(.cs) # the whole app UI as a UserControl
+  GmapPlanner.App/            # desktop exe host: Program, App.axaml, thin MainWindow, Assets
 tests/
   GmapPlanner.Core.Tests/     # xunit
 ```
@@ -86,7 +88,7 @@ it already caused one crash (picking an output folder killed the whole app).
    `Core/Json/GmapPlannerJsonContext.cs` and pass its `JsonTypeInfo` instead.
    The test project turns the same switch off, so a reflection-based call fails
    `dotnet test` rather than reaching a user.
-2. **Keep XAML bindings compiled.** `MainWindow.axaml` sets `x:CompileBindings="True"`
+2. **Keep XAML bindings compiled.** `MainView.axaml` sets `x:CompileBindings="True"`
    with `x:DataType`. Reflection bindings survive a Debug run and can break only once
    trimmed — exactly the failure mode that is hardest to notice.
 3. **Reflection-heavy dependencies need a trimmer root.** `SharpKml.Core` serializes
@@ -98,7 +100,7 @@ it already caused one crash (picking an output folder killed the whole app).
 
 ## UI
 
-`MainWindow.axaml` mirrors the original Streamlit app: a left sidebar (nav, the live
+`MainView.axaml` (in `GmapPlanner.UI`, hosted by the desktop `MainWindow`) mirrors the original Streamlit app: a left sidebar (nav, the live
 geocoding-usage ring, Options — days-per-KML slider and skip-geocoding toggle, and the
 Publish to My Maps controls) and a main pane with the drag & drop itinerary zone,
 "Generate map files", progress, an error banner, and the results block (success line,
@@ -114,7 +116,7 @@ share one absolute coordinate space). It stays hidden until a service-account JS
 set and Cloud Monitoring answers — every failure just hides it, never errors.
 
 Everything is MVVM except the file/folder pickers and drag & drop, which need the
-`TopLevel`'s `StorageProvider` and so live in `MainWindow.axaml.cs`. Those handlers are
+`TopLevel`'s `StorageProvider` (via `TopLevel.GetTopLevel(this)`) and so live in `MainView.axaml.cs`. Those handlers are
 `async void`, so they route through `SafeAsync` — an exception in one would otherwise
 take the process down instead of showing up in the error banner.
 
