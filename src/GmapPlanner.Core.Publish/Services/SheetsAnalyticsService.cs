@@ -5,9 +5,6 @@ using Google.Apis.Auth.OAuth2;
 
 namespace GmapPlanner.Core.Services;
 
-/// <summary>One logged trip, read back from the analytics Sheet.</summary>
-public sealed record AnalyticsRow(string CreatedAt, string TripName, int Maps, int Places, IReadOnlyList<string> MapLinks);
-
 /// <summary>
 /// Ports gmap_planner/analytics.py: append each generated trip to a Google Sheet and read it
 /// back for the Analytics page. The Sheet outlives the local install and is human-readable in
@@ -39,24 +36,6 @@ public sealed class SheetsAnalyticsService(HttpClient http)
     // Canonical key -> its column letter.
     private static string KeyCol(string key) => Col(Array.FindIndex(Columns, c => c.Key == key));
 
-    /// <summary>True when both the service account and a Sheet id are configured.</summary>
-    public static bool IsConfigured(string saJson, string sheetId) =>
-        !string.IsNullOrWhiteSpace(saJson) && !string.IsNullOrWhiteSpace(SheetIdOf(sheetId));
-
-    /// <summary>The Sheet id, accepting either a bare id or a full spreadsheet URL.</summary>
-    public static string SheetIdOf(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return "";
-        raw = raw.Trim();
-        const string marker = "/spreadsheets/d/";
-        var i = raw.IndexOf(marker, StringComparison.Ordinal);
-        return i < 0 ? raw : raw[(i + marker.Length)..].Split('/', 2)[0];
-    }
-
-    /// <summary>The shareable URL for a Sheet id (for the "view source" link).</summary>
-    public static string SheetUrl(string sheetId) =>
-        $"https://docs.google.com/spreadsheets/d/{SheetIdOf(sheetId)}";
-
     // --- Public API ----------------------------------------------------------
 
     /// <summary>
@@ -65,7 +44,7 @@ public sealed class SheetsAnalyticsService(HttpClient http)
     /// </summary>
     public async Task<List<AnalyticsRow>?> FetchRowsAsync(string saJson, string sheetIdRaw, CancellationToken ct = default)
     {
-        var sheetId = SheetIdOf(sheetIdRaw);
+        var sheetId = AnalyticsSheet.SheetIdOf(sheetIdRaw);
         if (string.IsNullOrWhiteSpace(saJson) || string.IsNullOrEmpty(sheetId)) return null;
         try
         {
@@ -108,7 +87,7 @@ public sealed class SheetsAnalyticsService(HttpClient http)
         string saJson, string sheetIdRaw, string tripName, int maps, int places, IEnumerable<string> mapLinks,
         CancellationToken ct = default)
     {
-        var sheetId = SheetIdOf(sheetIdRaw);
+        var sheetId = AnalyticsSheet.SheetIdOf(sheetIdRaw);
         if (string.IsNullOrWhiteSpace(saJson) || string.IsNullOrEmpty(sheetId)) return;
         try
         {

@@ -7,9 +7,6 @@ using GmapPlanner.Core.Json;
 
 namespace GmapPlanner.Core.Services;
 
-/// <summary>One API's usage as a percent-of-quota gauge.</summary>
-public record UsageGauge(int Used, int Limit, double Percent, int? ResetDays);
-
 /// <summary>
 /// Ports gmap_planner/usage.py: reads the real Places API (New) request count for the current
 /// month from Cloud Monitoring and turns it into a percent-of-quota gauge. Everything is

@@ -136,7 +136,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _totalPlaces = "0";
     [ObservableProperty] private string _analyticsThisMonth = "";
 
-    public bool HasAnalyticsSheetLink => SheetsAnalyticsService.IsConfigured(GcpSaJson, AnalyticsSheetId);
+    public bool HasAnalyticsSheetLink => AnalyticsSheet.IsConfigured(GcpSaJson, AnalyticsSheetId);
     public ObservableCollection<AnalyticsBar> AnalyticsBars { get; } = [];
 
     /// <summary>
@@ -146,7 +146,7 @@ public partial class MainViewModel : ViewModelBase
     private async Task LoadAnalyticsAsync()
     {
         OnPropertyChanged(nameof(HasAnalyticsSheetLink));
-        if (!SheetsAnalyticsService.IsConfigured(GcpSaJson, AnalyticsSheetId))
+        if (!AnalyticsSheet.IsConfigured(GcpSaJson, AnalyticsSheetId))
         {
             HasAnalytics = false;
             AnalyticsMessage = "Analytics storage isn't configured. On the Settings page, paste the "
@@ -213,7 +213,7 @@ public partial class MainViewModel : ViewModelBase
     private void OpenAnalyticsSheet()
     {
         if (!HasAnalyticsSheetLink) return;
-        try { Process.Start(new ProcessStartInfo(SheetsAnalyticsService.SheetUrl(AnalyticsSheetId)) { UseShellExecute = true }); }
+        try { Process.Start(new ProcessStartInfo(AnalyticsSheet.SheetUrl(AnalyticsSheetId)) { UseShellExecute = true }); }
         catch { /* opening a browser is a nicety */ }
     }
 

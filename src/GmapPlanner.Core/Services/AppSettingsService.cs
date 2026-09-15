@@ -25,8 +25,7 @@ public static class AppSettingsService
     {
         try
         {
-            var json = File.ReadAllText(ConfigPath);
-            return JsonSerializer.Deserialize(json, GmapPlannerJsonContext.Default.AppSettings) ?? new AppSettings();
+            return FromJson(File.ReadAllText(ConfigPath));
         }
         catch
         {
@@ -34,9 +33,23 @@ public static class AppSettingsService
         }
     }
 
-    public static void Save(AppSettings settings)
+    public static void Save(AppSettings settings) => File.WriteAllText(ConfigPath, ToJson(settings));
+
+    /// <summary>Settings as JSON (source-generated; the browser host keeps this in localStorage).</summary>
+    public static string ToJson(AppSettings settings) =>
+        JsonSerializer.Serialize(settings, GmapPlannerJsonContext.Default.AppSettings);
+
+    /// <summary>Parses settings JSON; null, blank or invalid JSON gives defaults.</summary>
+    public static AppSettings FromJson(string? json)
     {
-        var json = JsonSerializer.Serialize(settings, GmapPlannerJsonContext.Default.AppSettings);
-        File.WriteAllText(ConfigPath, json);
+        if (string.IsNullOrWhiteSpace(json)) return new AppSettings();
+        try
+        {
+            return JsonSerializer.Deserialize(json, GmapPlannerJsonContext.Default.AppSettings) ?? new AppSettings();
+        }
+        catch (JsonException)
+        {
+            return new AppSettings();
+        }
     }
 }
