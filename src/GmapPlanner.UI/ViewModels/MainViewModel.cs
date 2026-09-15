@@ -281,6 +281,13 @@ public partial class MainViewModel : ViewModelBase
                 }
                 else applied.Remove("credentials.json");
             }
+            if (!Features.Analytics)
+            {
+                // No usage ring / Analytics Sheet on this host — don't persist their secrets
+                // (e.g. the browser would write the SA private key to localStorage).
+                applied.Remove("GCP_SA_JSON");
+                applied.Remove("ANALYTICS_SHEET_ID");
+            }
             if (applied.Count == 0)
             {
                 SetupMessage = "Nothing loaded — no recognized keys in that file.";
@@ -289,8 +296,11 @@ public partial class MainViewModel : ViewModelBase
 
             GoogleApiKey = merged.Settings.GoogleApiKey;
             GeoApiKey = merged.Settings.GeoApiKey;
-            GcpSaJson = merged.Settings.GcpSaJson;
-            AnalyticsSheetId = merged.Settings.AnalyticsSheetId;
+            if (Features.Analytics)
+            {
+                GcpSaJson = merged.Settings.GcpSaJson;
+                AnalyticsSheetId = merged.Settings.AnalyticsSheetId;
+            }
             SaveSettings();
             SetupMessage = "Loaded: " + string.Join(", ", applied) + ".";
             _ = RefreshUsageAsync();

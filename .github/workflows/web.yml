@@ -22,10 +22,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          # SDK 10 ships the wasm-tools-net8 workload that builds the net8.0-browser app;
+          # 8.0.x pins the net8 targeting/runtime pack the app and tests target.
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Install WebAssembly build tools
-        run: dotnet workload install wasm-tools
+        run: dotnet workload install wasm-tools-net8
 
       - name: Test
         run: dotnet test tests/GmapPlanner.Core.Tests
@@ -41,6 +45,7 @@ jobs:
         run: |
           PROD_FLAG=""
           if [ "$GITHUB_REF" = "refs/heads/main" ]; then PROD_FLAG="--prod"; fi
-          URL=$(npx --yes vercel@latest deploy publish/browser/wwwroot $PROD_FLAG --yes --token "$VERCEL_TOKEN")
+          # Pinned: a floating vercel@latest can change CLI flags/output under us.
+          URL=$(npx --yes vercel@39 deploy publish/browser/wwwroot $PROD_FLAG --yes --token "$VERCEL_TOKEN")
           echo "Deployed: $URL"
           echo "### Deployed to $URL" >> "$GITHUB_STEP_SUMMARY"
