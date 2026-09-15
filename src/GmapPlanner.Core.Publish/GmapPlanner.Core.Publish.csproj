@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- This library builds RID-agnostic, so Microsoft.Playwright.targets would resolve the
+         node driver off the BUILD HOST (win32_x64 on Windows) and leak it into the app's
+         osx-arm64 publish. A library must bundle no driver at all — the published app
+         (which knows its target RID) copies the right one. 'none' skips the copy; the
+         managed Microsoft.Playwright.dll still flows through the project reference. -->
+    <PlaywrightPlatform>none</PlaywrightPlatform>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="GmapPlanner.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Apis.Drive.v3" Version="1.75.0.4218" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GmapPlanner.Core\GmapPlanner.Core.csproj" />
+  </ItemGroup>
+
+</Project>

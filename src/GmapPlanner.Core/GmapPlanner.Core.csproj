@@ -1,24 +1,20 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- Core is a library and builds RID-agnostic, so Microsoft.Playwright.targets would
-         resolve the node driver off the BUILD HOST (win32_x64 on Windows) and leak it into
-         the app's osx-arm64 publish. A library must bundle no driver at all — the published
-         app (which knows its target RID) copies the right one. 'none' skips the copy; the
-         managed Microsoft.Playwright.dll still flows through the project reference. -->
-    <PlaywrightPlatform>none</PlaywrightPlatform>
   </PropertyGroup>
+
+  <!-- Browser-safe: no Playwright, no Google.Apis (those live in GmapPlanner.Core.Publish).
+       CoreDependencyTests fails the build's tests if either creeps back in. -->
 
   <ItemGroup>
     <InternalsVisibleTo Include="GmapPlanner.Core.Tests" />
+    <InternalsVisibleTo Include="GmapPlanner.Core.Publish" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Google.Apis.Drive.v3" Version="1.75.0.4218" />
-    <PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
     <PackageReference Include="SharpKml.Core" Version="6.1.0" />
   </ItemGroup>
 

@@ -89,7 +89,7 @@ public class UsageService(HttpClient http)
         response.EnsureSuccessStatusCode();
 
         var payload = await response.Content.ReadFromJsonAsync(
-            GmapPlannerJsonContext.Default.TimeSeriesResponse, cts.Token);
+            PublishJsonContext.Default.TimeSeriesResponse, cts.Token);
 
         var total = 0.0;
         foreach (var series in payload?.TimeSeries ?? [])

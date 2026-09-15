@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\GmapPlanner.Core\GmapPlanner.Core.csproj" />
+    <ProjectReference Include="..\..\src\GmapPlanner.Core.Publish\GmapPlanner.Core.Publish.csproj" />
   </ItemGroup>
 
   <ItemGroup>

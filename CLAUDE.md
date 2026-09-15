@@ -22,23 +22,28 @@ with a real browser and an interactive login, and Google re-challenges replayed 
 ```
 GmapPlanner.sln
 src/
-  GmapPlanner.Core/          # no UI references — models, services, prompt
+  GmapPlanner.Core/          # browser-safe: no UI, no Playwright, no Google.Apis
     Models/                  # Trip, Day, Location
     Errors/                  # PipelineException, BadResponseException
     Prompt/                  # ExtractionPrompt (ported verbatim from prompt.py)
     Services/
       Gemini/                # GeminiExtractionService (HttpClient, no SDK)
-      GeocodingService.cs
-      KmlBuilder.cs          # SharpKml.Core
-      PipelineService.cs     # orchestrates extract -> geocode -> write KML
+      GeocodingService.cs    # Places API (New) Text Search
+      KmlBuilder.cs          # SharpKml.Core; KmlFile = in-memory KML
+      PipelineService.cs     # GenerateAsync (in memory) / RunAsync (+ write KML)
+    AppConfig.cs              # GEMINI_MODEL, MAX_LAYERS_PER_FILE, DAY_COLORS, ...
+    AppDataPaths.cs           # per-OS app data dir (ports paths.py)
+  GmapPlanner.Core.Publish/  # everything needing Playwright or Google.Apis
+    Services/
       Publish/               # phase 2
         MyMapsSession.cs     # Playwright automation of the My Maps editor
         MyMapsSelectors.cs   # the selectors Google keeps breaking
         MyMapsImport.cs      # the import retry, behind IImportSurface so it's testable
         DriveShareService.cs # OAuth, permissions.create, copyRequiresWriterPermission
         PublishService.cs    # one map per KML file, then share
-    AppConfig.cs              # GEMINI_MODEL, MAX_LAYERS_PER_FILE, DAY_COLORS, ...
-    AppDataPaths.cs           # per-OS app data dir (ports paths.py)
+      UsageService.cs        # Cloud Monitoring usage ring
+      SheetsAnalyticsService.cs
+    Json/PublishJsonContext.cs
   GmapPlanner.App/            # Avalonia MVVM desktop app
     ViewModels/MainViewModel.cs
     Views/MainWindow.axaml(.cs)
@@ -208,11 +213,11 @@ node driver at startup (the unsigned `.dmg` quarantines it, which would otherwis
 
 The driver ships as `.playwright/node/<platform>/` and Playwright execs it as a real
 file, which fights every default here. Publishing `osx-arm64` from a Windows box got
-this wrong three ways before the fixes in `GmapPlanner.Core.csproj` / `GmapPlanner.App.csproj`:
+this wrong three ways before the fixes in `GmapPlanner.Core.Publish.csproj` / `GmapPlanner.App.csproj`:
 
-1. **Library leaks the host driver.** `GmapPlanner.Core` holds the `Microsoft.Playwright`
+1. **Library leaks the host driver.** `GmapPlanner.Core.Publish` holds the `Microsoft.Playwright`
    PackageReference but builds RID-agnostic, so `Microsoft.Playwright.targets` resolved
-   the driver off the *build host* (win32_x64) and it rode into the mac publish. Core sets
+   the driver off the *build host* (win32_x64) and it rode into the mac publish. Core.Publish sets
    `<PlaywrightPlatform>none</PlaywrightPlatform>` — a library bundles no driver; the app does.
 2. **App must map its RID.** `GmapPlanner.App` sets `PlaywrightPlatform` = `osx-arm64` /
    `win` from `$(RuntimeIdentifier)` so its build output holds the one correct driver.
