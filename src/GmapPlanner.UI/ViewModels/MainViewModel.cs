@@ -274,7 +274,11 @@ public partial class MainViewModel : ViewModelBase
             var applied = merged.Applied;
             if (merged.CredentialsJson is not null)
             {
-                if (Features.Publish) _platform.SaveDriveCredentials(merged.CredentialsJson);
+                if (Features.Publish)
+                {
+                    try { _platform.SaveDriveCredentials(merged.CredentialsJson); }
+                    catch { applied.Remove("credentials.json"); } // not written, so not applied — keys still load
+                }
                 else applied.Remove("credentials.json");
             }
             if (applied.Count == 0)
