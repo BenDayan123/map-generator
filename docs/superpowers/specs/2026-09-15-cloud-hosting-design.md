@@ -185,9 +185,11 @@ setup .NET 8, `playwright install chromium` fallback, run Worker, `if: failure()
 ## Deployment
 
 - Vercel project on this repo, branch `feature/cloud-hosting` (preview) → `main` once merged.
-- `vercel.json`: `installCommand` runs `dotnet-install.sh` (.NET 8) + `npm ci`; `buildCommand`
-  runs `dotnet publish src/GmapPlanner.App.Browser -c Release` and copies the AppBundle to the
-  static output directory; `api/` deployed as Node functions; cron for blob cleanup.
+- The WASM bundle is built in GitHub Actions (`.github/workflows/web.yml`, `wasm-tools`
+  workload), not on Vercel — Vercel's build image has no emscripten/workload support. The
+  workflow uploads the static `wwwroot` with `vercel deploy` (main → production, branches →
+  preview). Phase 4 adds the `api/` Node functions and the daily blob-cleanup cron to the
+  same deploy.
 - Private worker repo created by the user; holds `.github/workflows/publish.yml` and secrets.
 - `release.yml` (desktop releases on `v*` tags) is untouched.
 
@@ -198,7 +200,7 @@ Each phase leaves the app working.
 1. Split `Core` → `Core` + `Core.Publish`; extract shared UI into `GmapPlanner.UI` (desktop host stays `GmapPlanner.App`); in-memory KML
    from `PipelineService`. Desktop behaviour unchanged, tests green.
 2. `App.Browser`: WASM host, browser settings storage, client-side generation, KML downloads,
-   PDF CORS check. Deploy static site to Vercel.
+   PDF CORS check. Deploy static site to Vercel. Deployed by GitHub Actions + Vercel CLI (see Deployment).
 3. `/api/usage` and `/api/analytics`.
 4. `LoginHelper`, `MyMapsSession` storage-state mode, `Worker`, jobs API, worker workflow.
 5. Manual end-to-end checklist.

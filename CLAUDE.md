@@ -46,9 +46,12 @@ src/
     Json/PublishJsonContext.cs
   GmapPlanner.UI/             # shared Avalonia UI (desktop today, browser in phase 2)
     Theme.axaml               # design tokens + component styles; hosts include it after FluentTheme
+    Platform/IPlatformServices.cs # host seam: desktop + browser implementations
     ViewModels/MainViewModel.cs
     Views/MainView.axaml(.cs) # the whole app UI as a UserControl
   GmapPlanner.App/            # desktop exe host: Program, App.axaml, thin MainWindow, Assets
+    Platform/DesktopPlatformServices.cs # files, Playwright, Drive, Sheets, Monitoring, updater
+  GmapPlanner.App.Browser/    # WebAssembly host (Vercel): BrowserPlatformServices, wwwroot, Hebrew font
 tests/
   GmapPlanner.Core.Tests/     # xunit
 ```
@@ -70,6 +73,11 @@ Publish (small, self-contained, single file):
 dotnet publish src/GmapPlanner.App -c Release -r win-x64
 dotnet publish src/GmapPlanner.App -c Release -r osx-arm64
 ```
+
+The browser host needs the `wasm-tools-net8` workload (install once from an Administrator
+terminal: `dotnet workload install wasm-tools-net8`); without it, a solution-wide
+`dotnet build` fails on `GmapPlanner.App.Browser` — build `src/GmapPlanner.App` directly
+instead. Run the site locally with `dotnet run --project src/GmapPlanner.App.Browser`.
 
 `GmapPlanner.App.csproj` sets `PublishSingleFile`, `SelfContained`, `PublishTrimmed`
 (`TrimMode=partial`). `InvariantGlobalization` is on for size; revisit if Hebrew text
@@ -125,6 +133,14 @@ Everything is MVVM except the file/folder pickers and drag & drop, which need th
 `TopLevel`'s `StorageProvider` (via `TopLevel.GetTopLevel(this)`) and so live in `MainView.axaml.cs`. Those handlers are
 `async void`, so they route through `SafeAsync` — an exception in one would otherwise
 take the process down instead of showing up in the error banner.
+
+`MainViewModel` never calls host-specific code directly: settings storage, file
+save/download, publishing, Google login, usage/analytics and the updater all go through
+`Platform/IPlatformServices` (`DesktopPlatformServices` in the exe, `BrowserPlatformServices`
+in the WASM host). `PlatformFeatures` says what a host supports and the view binds
+`IsVisible` to it, so the browser simply doesn't show publish/analytics/update controls until
+later phases enable them. Input arrives as `IStorageFile` → bytes (the browser has no paths),
+and generation is `PipelineService.GenerateAsync` in memory.
 
 ## Key ports from the Python original
 
@@ -226,11 +242,11 @@ this wrong three ways before the fixes in `GmapPlanner.Core.Publish.csproj` / `G
 1. **Library leaks the host driver.** Any project that references Microsoft.Playwright, directly
    or *transitively*, builds RID-agnostic, so `Microsoft.Playwright.targets` resolves the driver
    off the *build host* (win32_x64 on Windows) and it rides into the mac publish. Every such
-   library — today `GmapPlanner.Core.Publish` (direct PackageReference) and `GmapPlanner.UI`
-   (transitive, via its project reference to Core.Publish) — sets
-   `<PlaywrightPlatform>none</PlaywrightPlatform>` — a library bundles no driver; the app does.
-   The trap already reappeared once, when `GmapPlanner.UI` picked up Core.Publish as a dependency
-   and nobody set the property there.
+   library sets `<PlaywrightPlatform>none</PlaywrightPlatform>` — a library bundles no driver;
+   the app does. Today that's only `GmapPlanner.Core.Publish`: `GmapPlanner.UI` reaches
+   Playwright no longer (host-specific code goes through `IPlatformServices`), and
+   `GmapPlanner.App.Browser` must never reference Core.Publish. The trap reappeared once, when
+   `GmapPlanner.UI` briefly referenced Core.Publish without the property.
 2. **App must map its RID.** `GmapPlanner.App` sets `PlaywrightPlatform` = `osx-arm64` /
    `win` from `$(RuntimeIdentifier)` so its build output holds the one correct driver.
    Left empty (a dev `dotnet run`) it falls through to the host driver, which is right for
@@ -267,6 +283,23 @@ one are the same platform.
   `chmod +x`) and an `hdiutil` `.dmg`. A `release` job attaches both to the GitHub Release.
   The macOS app is **unsigned** — first launch needs a right-click → Open past Gatekeeper.
 - **Cutting a release:** merge to `main`, then `git tag v1.2.3 && git push origin v1.2.3`.
+
+## Browser host (cloud hosting, phase 2)
+
+- **`GmapPlanner.App.Browser`** — the shared UI compiled to WebAssembly (`net8.0-browser`,
+  Avalonia.Browser), served as static files from Vercel. Settings live in the browser's
+  localStorage (per device), KML files are downloads, and Gemini gets PDFs as base64
+  `inline_data` (`GeminiExtractionService(inlineFiles: true)`) because the Files API upload
+  reads a response header a cross-origin fetch can't see; the browser's upload cap is 14 MB
+  to stay under Gemini's 20 MB inline limit.
+- **Fonts:** a browser has no system fonts. `Program.cs` makes bundled Inter the default and
+  falls back to the bundled `Assets/Fonts/NotoSansHebrew.ttf` (OFL), or Hebrew renders as boxes.
+- **Trimming:** the WASM publish trims (`TrimMode=partial`, `SharpKml.Core` rooted); the same
+  source-gen JSON rule applies.
+- **Deploy:** `.github/workflows/web.yml` builds with the `wasm-tools` workload and uploads
+  `publish/browser/wwwroot` with `vercel deploy` (main → production, other branches → preview).
+  Needs repo secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. The Vercel project
+  must **not** be connected to the Git repository — Vercel's own build can't compile WASM.
 
 ## Not ported (yet)
 
