@@ -67,6 +67,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GmapPlanner.UI\GmapPlanner.UI.csproj" />
+    <ProjectReference Include="..\GmapPlanner.Core.Publish\GmapPlanner.Core.Publish.csproj" />
   </ItemGroup>
 
   <!-- Single-file publish strips Playwright's node/<platform> driver from the loose

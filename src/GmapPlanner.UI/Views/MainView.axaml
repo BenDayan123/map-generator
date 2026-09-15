@@ -14,10 +14,6 @@
     <!-- The whole app UI, host-agnostic: the desktop MainWindow wraps it today, the
          browser host (phase 2) uses it as its single view. -->
 
-    <Design.DataContext>
-        <vm:MainViewModel />
-    </Design.DataContext>
-
     <!-- All styles/tokens live in GmapPlanner.UI/Theme.axaml (included by each host's
          App.axaml) so the whole app shares one design system. -->
 
@@ -44,7 +40,7 @@
                             <TextBlock Text="Make Map" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <Button Classes="nav" Command="{Binding ShowAnalyticsCommand}">
+                    <Button Classes="nav" Command="{Binding ShowAnalyticsCommand}" IsVisible="{Binding Features.Analytics}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Path Classes="icon" Width="17" Height="17" VerticalAlignment="Center" Data="{StaticResource IconChart}" />
                             <TextBlock Text="Analytics" VerticalAlignment="Center" />
@@ -100,6 +96,7 @@
                     <TextBlock Classes="caption"
                                Text="Use Gemini's approximate coordinates instead of snapping each place to its exact Google Maps point. Faster, less accurate pins." />
 
+                    <StackPanel Spacing="6" IsVisible="{Binding Features.Publish}">
                     <Separator Margin="0,14" Background="{StaticResource HairlineBrush}" />
 
                     <TextBlock Classes="sideHeader" Text="PUBLISH TO MY MAPS" />
@@ -159,6 +156,7 @@
                                       OnContent="Show the browser" OffContent="Show the browser" />
                         <TextBlock Classes="caption"
                                    Text="Headless by default. Turn on to watch or debug the automation." />
+                    </StackPanel>
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>
@@ -455,7 +453,7 @@
                     </Border>
 
                     <!-- Service-account JSON (usage gauge) -->
-                    <Border Classes="card">
+                    <Border Classes="card" IsVisible="{Binding Features.Analytics}">
                         <StackPanel Spacing="8">
                             <TextBlock Classes="subhead" Text="Usage gauge (optional)" />
                             <TextBlock Classes="caption"
@@ -467,7 +465,7 @@
                     </Border>
 
                     <!-- Analytics Sheet -->
-                    <Border Classes="card">
+                    <Border Classes="card" IsVisible="{Binding Features.Analytics}">
                         <StackPanel Spacing="8">
                             <TextBlock Classes="subhead" Text="Analytics Sheet (optional)" />
                             <TextBlock Classes="caption"
@@ -478,7 +476,7 @@
                     </Border>
 
                     <!-- Drive sharing credentials -->
-                    <Border Classes="card">
+                    <Border Classes="card" IsVisible="{Binding Features.Publish}">
                         <StackPanel Spacing="8">
                             <TextBlock Classes="subhead" Text="Drive sharing credentials (optional)" />
                             <TextBlock Classes="caption"
@@ -502,15 +500,15 @@
                                 <Run Text="{Binding HasGeoKey, Converter={x:Static vm:BoolTick.Instance}}" />
                                 <Run Text="Places API (New) key" />
                             </TextBlock>
-                            <TextBlock>
+                            <TextBlock IsVisible="{Binding Features.Publish}">
                                 <Run Text="{Binding HasGoogleLogin, Converter={x:Static vm:BoolTick.Instance}}" />
                                 <Run Text="Signed in to Google (My Maps)" />
                             </TextBlock>
-                            <TextBlock>
+                            <TextBlock IsVisible="{Binding Features.Publish}">
                                 <Run Text="{Binding HasDriveCredentials, Converter={x:Static vm:BoolTick.Instance}}" />
                                 <Run Text="Drive credentials.json" />
                             </TextBlock>
-                            <TextBlock>
+                            <TextBlock IsVisible="{Binding Features.Publish}">
                                 <Run Text="{Binding HasDriveToken, Converter={x:Static vm:BoolTick.Instance}}" />
                                 <Run Text="Drive access authorized" />
                             </TextBlock>
@@ -518,7 +516,7 @@
                     </Border>
 
                     <!-- About & updates -->
-                    <Border Classes="card">
+                    <Border Classes="card" IsVisible="{Binding Features.Updates}">
                         <StackPanel Spacing="8">
                             <TextBlock Classes="subhead" Text="About &amp; updates" />
                             <TextBlock Classes="caption">

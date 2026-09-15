@@ -1,13 +1,13 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GmapPlanner.App.Platform;
 using GmapPlanner.Core;
 using GmapPlanner.Core.Services;
 using GmapPlanner.Core.Services.Gemini;
-using GmapPlanner.Core.Services.Publish;
 
 namespace GmapPlanner.App.ViewModels;
 
@@ -15,10 +15,12 @@ public partial class MainViewModel : ViewModelBase
 {
     private static readonly HttpClient Http = new();
 
-    // Matches the Streamlit app's upload cap.
-    private const int MaxUploadMb = 15;
+    private readonly IPlatformServices _platform;
 
     public int MaxLayersPerFile => AppConfig.MaxLayersPerFile;
+
+    /// <summary>What this host supports; the view binds visibility to it.</summary>
+    public PlatformFeatures Features => _platform.Features;
 
     // --- Navigation ---------------------------------------------------------
     public enum AppPage { MakeMap, Analytics, Settings }
@@ -37,17 +39,12 @@ public partial class MainViewModel : ViewModelBase
     }
 
     // --- Input + settings ---------------------------------------------------
-    [ObservableProperty] private string _inputFilePath = "";
+    private byte[]? _inputContent;
     [ObservableProperty] private string _inputFileName = "";
     [ObservableProperty] private string _googleApiKey;
     [ObservableProperty] private string _geoApiKey;
     [ObservableProperty] private string _gcpSaJson;
     [ObservableProperty] private string _analyticsSheetId;
-
-    // KML is written to a throwaway working dir, never the user's Downloads. The user
-    // pulls the files out with the Download button on the Make Map page.
-    // ponytail: OS temp, no cleanup — files are small and Windows/macOS reclaim temp.
-    private static string WorkDir => Path.Combine(Path.GetTempPath(), "GmapPlanner");
     [ObservableProperty] private string _setupMessage = "";
 
     // --- Setup status (green/⚪ checklist) -----------------------------------
@@ -57,8 +54,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private bool _hasDriveCredentials;
     [ObservableProperty] private bool _hasDriveToken;
 
-    // --- Geocoding usage gauge ----------------------------------------------
-    private readonly UsageService _usage = new(Http);
+    // --- Usage gauge --------------------------------------------------------
     private bool _usageLoading;
     [ObservableProperty] private bool _hasUsage;
     [ObservableProperty] private Geometry? _usageRingGeometry;
@@ -86,8 +82,6 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Recipient email chips shown in the token input. Deduped on add.</summary>
     public ObservableCollection<string> ShareEmailsList { get; } = [];
 
-    private List<string> Recipients => ShareEmailsList.ToList();
-
     private static readonly char[] EmailSeparators = [',', ';', ' ', '\t', '\n', '\r'];
 
     /// <summary>Splits a typed/pasted string on the usual separators and adds each as a chip.</summary>
@@ -111,7 +105,6 @@ public partial class MainViewModel : ViewModelBase
     }
 
     // --- Updates ------------------------------------------------------------
-    private readonly UpdateService _updater = new(Http);
     private UpdateInfo? _pendingUpdate;
 
     public string AppVersion => $"v{UpdateService.CurrentVersion()}";
@@ -126,8 +119,6 @@ public partial class MainViewModel : ViewModelBase
     }
 
     // --- Analytics (Google Sheet) -------------------------------------------
-    private readonly SheetsAnalyticsService _sheets = new(Http);
-
     [ObservableProperty] private bool _hasAnalytics;              // rows loaded and shown
     [ObservableProperty] private bool _analyticsLoading;
     [ObservableProperty] private string _analyticsMessage = "";   // empty-state / config / error text
@@ -159,7 +150,7 @@ public partial class MainViewModel : ViewModelBase
         AnalyticsMessage = "Loading from the Google Sheet…";
         try
         {
-            var rows = await _sheets.FetchRowsAsync(GcpSaJson, AnalyticsSheetId);
+            var rows = await _platform.FetchAnalyticsAsync(GcpSaJson, AnalyticsSheetId);
             if (rows is null)
             {
                 HasAnalytics = false;
@@ -176,8 +167,7 @@ public partial class MainViewModel : ViewModelBase
 
             TotalTrips = rows.Select(r => r.TripName).Distinct(StringComparer.OrdinalIgnoreCase).Count().ToString();
             TotalMaps = rows.Sum(r => r.Maps).ToString();
-            var places = rows.Sum(r => r.Places);
-            TotalPlaces = places.ToString();
+            TotalPlaces = rows.Sum(r => r.Places).ToString();
 
             var monthPrefix = DateTime.Now.ToString("yyyy-MM");
             var monthRows = rows.Where(r => r.CreatedAt.StartsWith(monthPrefix)).ToList();
@@ -212,9 +202,7 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void OpenAnalyticsSheet()
     {
-        if (!HasAnalyticsSheetLink) return;
-        try { Process.Start(new ProcessStartInfo(AnalyticsSheet.SheetUrl(AnalyticsSheetId)) { UseShellExecute = true }); }
-        catch { /* opening a browser is a nicety */ }
+        if (HasAnalyticsSheetLink) _platform.OpenUrl(AnalyticsSheet.SheetUrl(AnalyticsSheetId));
     }
 
     // --- Run state ----------------------------------------------------------
@@ -231,9 +219,10 @@ public partial class MainViewModel : ViewModelBase
 
     public ObservableCollection<KmlFileItem> ResultFiles { get; } = [];
 
-    public MainViewModel()
+    public MainViewModel(IPlatformServices platform)
     {
-        var settings = AppSettingsService.Load();
+        _platform = platform;
+        var settings = platform.LoadSettings();
         _googleApiKey = settings.GoogleApiKey;
         _geoApiKey = settings.GeoApiKey;
         _gcpSaJson = settings.GcpSaJson;
@@ -246,63 +235,60 @@ public partial class MainViewModel : ViewModelBase
     partial void OnGcpSaJsonChanged(string value) => SaveSettings();
     partial void OnAnalyticsSheetIdChanged(string value) => SaveSettings();
     partial void OnIsBusyChanged(bool value) => GenerateCommand.NotifyCanExecuteChanged();
+    partial void OnInputFileNameChanged(string value) => GenerateCommand.NotifyCanExecuteChanged();
 
-    partial void OnInputFilePathChanged(string value)
+    private AppSettings CurrentSettings() => new()
     {
-        InputFileName = string.IsNullOrEmpty(value) ? "" : Path.GetFileName(value);
-        GenerateCommand.NotifyCanExecuteChanged();
-    }
+        GoogleApiKey = GoogleApiKey,
+        GeoApiKey = GeoApiKey,
+        GcpSaJson = GcpSaJson,
+        AnalyticsSheetId = AnalyticsSheetId,
+    };
 
     private void SaveSettings()
     {
-        AppSettingsService.Save(new AppSettings
-        {
-            GoogleApiKey = GoogleApiKey,
-            GeoApiKey = GeoApiKey,
-            GcpSaJson = GcpSaJson,
-            AnalyticsSheetId = AnalyticsSheetId,
-        });
+        _platform.SaveSettings(CurrentSettings());
         RefreshSetupStatus();
     }
 
-    /// <summary>Recomputes the green/⚪ checklist from the saved keys, profile, and files.</summary>
+    /// <summary>Recomputes the green/⚪ checklist from the saved keys and the host's login/Drive state.</summary>
     private void RefreshSetupStatus()
     {
         HasGeminiKey = !string.IsNullOrWhiteSpace(GoogleApiKey);
         HasGeoKey = !string.IsNullOrWhiteSpace(GeoApiKey);
-        HasGoogleLogin = DirHasFiles(AppConfig.PlaywrightProfileDir);
-        HasDriveCredentials = File.Exists(AppConfig.DriveCredentialsFile);
-        HasDriveToken = DirHasFiles(AppConfig.DriveTokenDir);
-    }
-
-    private static bool DirHasFiles(string path)
-    {
-        try { return Directory.Exists(path) && Directory.EnumerateFileSystemEntries(path).Any(); }
-        catch { return false; }
+        var status = _platform.GetSetupStatus();
+        HasGoogleLogin = status.HasGoogleLogin;
+        HasDriveCredentials = status.HasDriveCredentials;
+        HasDriveToken = status.HasDriveToken;
     }
 
     /// <summary>
     /// Applies a one-file setup JSON: fills the key fields and, if it carries a
-    /// `credentials` object, writes credentials.json. Called by the file picker.
+    /// `credentials` object and the host can publish, stores credentials.json.
     /// </summary>
-    public void ApplySetupBundleFile(string path)
+    public async Task LoadSetupBundleAsync(IStorageFile file)
     {
         try
         {
-            var result = SetupBundleService.ApplyFromText(File.ReadAllText(path));
-            if (!result.AnythingApplied)
+            var merged = SetupBundleService.MergeFromText(await ReadTextAsync(file), CurrentSettings());
+            var applied = merged.Applied;
+            if (merged.CredentialsJson is not null)
+            {
+                if (Features.Publish) _platform.SaveDriveCredentials(merged.CredentialsJson);
+                else applied.Remove("credentials.json");
+            }
+            if (applied.Count == 0)
             {
                 SetupMessage = "Nothing loaded — no recognized keys in that file.";
                 return;
             }
-            // Reload so the fields (and status) reflect what the bundle wrote.
-            var settings = AppSettingsService.Load();
-            GoogleApiKey = settings.GoogleApiKey;
-            GeoApiKey = settings.GeoApiKey;
-            GcpSaJson = settings.GcpSaJson;
-            AnalyticsSheetId = settings.AnalyticsSheetId;
-            RefreshSetupStatus();
-            SetupMessage = "Loaded: " + string.Join(", ", result.Applied) + ".";
+
+            GoogleApiKey = merged.Settings.GoogleApiKey;
+            GeoApiKey = merged.Settings.GeoApiKey;
+            GcpSaJson = merged.Settings.GcpSaJson;
+            AnalyticsSheetId = merged.Settings.AnalyticsSheetId;
+            SaveSettings();
+            SetupMessage = "Loaded: " + string.Join(", ", applied) + ".";
             _ = RefreshUsageAsync();
         }
         catch (Exception e)
@@ -311,14 +297,14 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Copies a chosen Drive OAuth client into place as credentials.json.</summary>
-    public void SetDriveCredentialsFile(string path)
+    /// <summary>Stores a chosen Drive OAuth client as credentials.json.</summary>
+    public async Task LoadDriveCredentialsAsync(IStorageFile file)
     {
         try
         {
-            var text = File.ReadAllText(path);
+            var text = await ReadTextAsync(file);
             JsonNode.Parse(text); // reject a non-JSON file before overwriting
-            File.WriteAllText(AppConfig.DriveCredentialsFile, text);
+            _platform.SaveDriveCredentials(text);
             RefreshSetupStatus();
             SetupMessage = "Saved credentials.json.";
         }
@@ -329,19 +315,19 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Loads the live geocoding-usage gauge (best-effort). Hidden when no service account
-    /// is configured or Monitoring can't be read — never surfaces an error. Runs on the
-    /// UI thread (called from the view / after a geocoded run) so binding updates are safe.
+    /// Loads the live usage gauge (best-effort). Hidden when the host has no analytics, no
+    /// service account is configured, or Monitoring can't be read — never surfaces an error.
+    /// Runs on the UI thread (called from the view / after a geocoded run) so binding updates are safe.
     /// </summary>
     public async Task RefreshUsageAsync()
     {
         if (_usageLoading) return;
-        if (string.IsNullOrWhiteSpace(GcpSaJson)) { HasUsage = false; return; }
+        if (!Features.Analytics || string.IsNullOrWhiteSpace(GcpSaJson)) { HasUsage = false; return; }
 
         _usageLoading = true;
         try
         {
-            var gauge = await _usage.GetGeocodeUsageAsync(GcpSaJson);
+            var gauge = await _platform.GetUsageAsync(GcpSaJson);
             if (gauge is null) { HasUsage = false; return; }
 
             UsageRingGeometry = Geometry.Parse(UsageRing.ArcGeometry(gauge.Percent));
@@ -363,22 +349,32 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>Accepts a dropped or picked itinerary, rejecting the wrong type or an oversized file.</summary>
-    public void SetInputFile(string path)
+    public async Task LoadInputFileAsync(IStorageFile file)
     {
-        var ext = Path.GetExtension(path).ToLowerInvariant();
+        var ext = Path.GetExtension(file.Name).ToLowerInvariant();
         if (ext is not (".pdf" or ".txt"))
         {
             ErrorText = "Only PDF or TXT itineraries are supported.";
             return;
         }
-        var sizeMb = new FileInfo(path).Length / 1e6;
-        if (sizeMb > MaxUploadMb)
+        // Check the size before reading, so an accidental huge file is never pulled into memory.
+        var size = (await file.GetBasicPropertiesAsync()).Size;
+        var maxMb = Features.MaxUploadMb;
+        if (size is { } bytes && bytes / 1e6 > maxMb)
         {
-            ErrorText = $"File is too large ({sizeMb:F1} MB). Max is {MaxUploadMb} MB.";
+            ErrorText = $"File is too large ({bytes / 1e6:F1} MB). Max is {maxMb} MB.";
+            return;
+        }
+
+        var content = await ReadBytesAsync(file);
+        if (content.Length / 1e6 > maxMb)
+        {
+            ErrorText = $"File is too large ({content.Length / 1e6:F1} MB). Max is {maxMb} MB.";
             return;
         }
         ErrorText = "";
-        InputFilePath = path;
+        _inputContent = content;
+        InputFileName = file.Name;
     }
 
     [RelayCommand]
@@ -390,7 +386,7 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void ShowSettings() => Page = AppPage.Settings;
 
-    private bool CanGenerate() => !IsBusy && !string.IsNullOrWhiteSpace(InputFilePath);
+    private bool CanGenerate() => !IsBusy && _inputContent is not null;
 
     [RelayCommand(CanExecute = nameof(CanGenerate))]
     private async Task GenerateAsync()
@@ -402,6 +398,7 @@ public partial class MainViewModel : ViewModelBase
             ErrorText = "No Gemini API key configured — add one on the ⚙️ Settings page.";
             return;
         }
+        if (_inputContent is null) return;
 
         IsBusy = true;
         HasResult = false;
@@ -410,13 +407,13 @@ public partial class MainViewModel : ViewModelBase
         ResultFiles.Clear();
         try
         {
-            var gemini = new GeminiExtractionService(Http, GoogleApiKey);
+            var gemini = new GeminiExtractionService(Http, GoogleApiKey, inlineFiles: Features.InlineFiles);
             var geocoding = new GeocodingService(Http, GeoApiKey);
             var pipeline = new PipelineService(gemini, geocoding);
 
-            var result = await pipeline.RunAsync(
-                InputFilePath,
-                WorkDir,
+            var result = await pipeline.GenerateAsync(
+                InputFileName,
+                _inputContent,
                 layersPerFile: LayersPerFile,
                 noGeocode: SkipGeocoding,
                 progress: (step, frac) =>
@@ -430,20 +427,23 @@ public partial class MainViewModel : ViewModelBase
             ResultLocations = result.Locations.ToString();
             ResultExactCoords = $"{result.Corrected}/{result.Corrected + result.Fallback}";
             GeocodeWarning = result.GeocodeWarning ?? "";
-            foreach (var path in result.Files) ResultFiles.Add(KmlFileItem.FromPath(path));
+            foreach (var kml in result.KmlFiles) ResultFiles.Add(KmlFileItem.From(kml));
             HasResult = true;
             StatusText = "";
 
-            if (PublishEnabled) await PublishAsync(result.Files, result.TripName);
+            if (PublishEnabled && Features.Publish) await PublishAsync(result.TripName, result.KmlFiles);
 
             // Log the run to the analytics Google Sheet (best-effort; no-op if unconfigured).
-            // Fire-and-forget: RecordPublishAsync never throws, and a slow/unreachable Sheet must
-            // not keep the finished run "busy". Materialize off the UI collection before firing so
-            // the deferred continuation never touches ResultFiles off the UI thread.
-            var mapCount = ResultFiles.Count(f => f.HasMap);
-            var mapLinks = ResultFiles.Where(f => f.HasMap).Select(f => f.MapUrl).ToList();
-            _ = _sheets.RecordPublishAsync(
-                GcpSaJson, AnalyticsSheetId, result.TripName, mapCount, result.Locations, mapLinks);
+            // Fire-and-forget: logging never throws, and a slow/unreachable Sheet must not keep
+            // the finished run "busy". Materialize off the UI collection before firing so the
+            // deferred continuation never touches ResultFiles off the UI thread.
+            if (Features.Analytics)
+            {
+                var mapCount = ResultFiles.Count(f => f.HasMap);
+                var mapLinks = ResultFiles.Where(f => f.HasMap).Select(f => f.MapUrl).ToList();
+                _ = _platform.RecordTripAsync(
+                    GcpSaJson, AnalyticsSheetId, result.TripName, mapCount, result.Locations, mapLinks);
+            }
         }
         catch (Exception e)
         {
@@ -455,38 +455,37 @@ public partial class MainViewModel : ViewModelBase
             IsBusy = false;
         }
 
-        // A geocoded run just spent Geocoding quota — refresh the gauge once (the only
+        // A geocoded run just spent Places quota — refresh the gauge once (the only
         // refresh besides app launch), matching the Python app. Skipped when geocoding was off.
         if (!SkipGeocoding) await RefreshUsageAsync();
     }
 
     /// <summary>
     /// Creates one My Maps map per KML file and shares it. Publishing failing must never
-    /// discard the KML files that were already written, so this reports into the file
-    /// rows and the error banner rather than throwing out of the run.
+    /// discard the KML files already generated, so this reports into the file rows and the
+    /// error banner rather than throwing out of the run.
     /// </summary>
-    private async Task PublishAsync(IReadOnlyList<string> files, string tripName)
+    private async Task PublishAsync(string tripName, IReadOnlyList<KmlFile> files)
     {
-        var recipients = Recipients;
         try
         {
-            var maps = await PublishService.PublishKmlFilesAsync(
-                files,
+            var maps = await _platform.PublishAsync(
                 tripName,
-                recipients,
-                role: SelectedRole,
-                headless: !ShowBrowser,
-                notify: NotifyShare,
-                progress: (step, frac) =>
+                files,
+                ShareEmailsList.ToList(),
+                SelectedRole,
+                NotifyShare,
+                ShowBrowser,
+                (step, frac) =>
                 {
                     StatusText = step;
                     Progress = frac;
                 });
 
-            var byFile = ResultFiles.ToDictionary(f => f.Path, StringComparer.OrdinalIgnoreCase);
+            var byFile = ResultFiles.ToDictionary(f => f.FileName, StringComparer.OrdinalIgnoreCase);
             foreach (var map in maps)
             {
-                if (!byFile.TryGetValue(map.File, out var row)) continue;
+                if (!byFile.TryGetValue(map.FileName, out var row)) continue;
                 row.MapError = map.Error;
                 if (map.Error.Length == 0)
                 {
@@ -517,7 +516,7 @@ public partial class MainViewModel : ViewModelBase
         LoginStatus = "Opening a browser window — sign in to Google, then return here…";
         try
         {
-            await MyMapsSession.LoginAsync();
+            await _platform.LoginAsync();
             LoginStatus = "✅ Signed in to Google. The session is saved for future runs.";
         }
         catch (Exception e)
@@ -537,8 +536,7 @@ public partial class MainViewModel : ViewModelBase
         LoginStatus = "Checking the saved Google session…";
         try
         {
-            await using var session = await MyMapsSession.StartAsync(headless: true);
-            LoginStatus = await session.IsLoggedInAsync()
+            LoginStatus = await _platform.IsLoggedInAsync()
                 ? "✅ Signed in to Google."
                 : "⚠️ Not signed in — click 'Log in to Google'.";
         }
@@ -555,15 +553,7 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void OpenMap(KmlFileItem? item)
     {
-        if (item is null || !item.HasMap) return;
-        try
-        {
-            Process.Start(new ProcessStartInfo(item.MapUrl) { UseShellExecute = true });
-        }
-        catch
-        {
-            // Opening a browser is a nicety; never fail the run over it.
-        }
+        if (item is { HasMap: true }) _platform.OpenUrl(item.MapUrl);
     }
 
     // --- Update commands ----------------------------------------------------
@@ -578,7 +568,7 @@ public partial class MainViewModel : ViewModelBase
         _pendingUpdate = null;
         try
         {
-            var info = await _updater.CheckForUpdateAsync(AppConfig.GithubRepo);
+            var info = await _platform.CheckForUpdateAsync();
             if (info is null) { UpdateStatus = "Couldn't check for updates — check your connection."; return; }
             if (!info.HasUpdate) { UpdateStatus = $"You're on the latest version (v{info.Current})."; return; }
 
@@ -610,13 +600,8 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             UpdateStatus = "Downloading update…";
-            var path = await _updater.DownloadAssetAsync(
-                info.AssetUrl, info.AssetName,
-                progress: p => UpdateStatus = $"Downloading update… {p:P0}");
+            await _platform.InstallUpdateAsync(info, p => UpdateStatus = $"Downloading update… {p:P0}");
             UpdateStatus = "Starting the installer…";
-            // On Windows this quits the app so the installer can replace the files, then
-            // relaunches the new version; on macOS it opens the .dmg for a drag-install.
-            UpdateService.ApplyUpdate(path);
         }
         catch (Exception e)
         {
@@ -634,32 +619,36 @@ public partial class MainViewModel : ViewModelBase
         var url = _pendingUpdate is { HtmlUrl.Length: > 0 } info
             ? info.HtmlUrl
             : $"https://github.com/{AppConfig.GithubRepo}/releases";
-        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
-        catch { /* opening a browser is a nicety */ }
+        _platform.OpenUrl(url);
     }
 
-    /// <summary>
-    /// Copies the generated KML files (in the temp working dir) into a folder the user
-    /// picked, then reveals it. This is the only path that puts KML on the user's disk —
-    /// nothing is written to Downloads automatically.
-    /// </summary>
-    public void SaveKmlFilesTo(string folder)
+    /// <summary>Hands the generated KML to the user (desktop: a chosen folder; browser: downloads).</summary>
+    public async Task SaveKmlFilesAsync(IStorageProvider storage)
     {
-        foreach (var f in ResultFiles)
-        {
-            try { File.Copy(f.Path, Path.Combine(folder, f.FileName), overwrite: true); }
-            catch (Exception e) { ErrorText = $"Couldn't save {f.FileName}: {e.Message}"; return; }
-        }
-        StatusText = $"Saved {ResultFiles.Count} file(s) to {folder}";
+        if (ResultFiles.Count == 0) return;
         try
         {
-            // Best-effort reveal, like the Python app's reveal_in_file_manager.
-            var (exe, args) = OperatingSystem.IsMacOS() ? ("open", folder) : ("explorer.exe", folder);
-            Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true });
+            var status = await _platform.SaveKmlFilesAsync(storage, ResultFiles.Select(f => f.File).ToList());
+            if (status.Length > 0) StatusText = status;
         }
-        catch
+        catch (Exception e)
         {
-            // Opening a file manager is a nicety; never fail over it.
+            ErrorText = $"Couldn't save the KML files: {e.Message}";
         }
+    }
+
+    private static async Task<byte[]> ReadBytesAsync(IStorageFile file)
+    {
+        await using var stream = await file.OpenReadAsync();
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer);
+        return buffer.ToArray();
+    }
+
+    private static async Task<string> ReadTextAsync(IStorageFile file)
+    {
+        await using var stream = await file.OpenReadAsync();
+        using var reader = new StreamReader(stream);
+        return await reader.ReadToEndAsync();
     }
 }

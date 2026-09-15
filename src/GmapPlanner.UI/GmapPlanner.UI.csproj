@@ -1,17 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- Shared Avalonia UI: MainView, view models, and the design system (Theme.axaml).
-       Hosted by the desktop exe (GmapPlanner.App) today and by the browser host in phase 2.
+       Shared by the desktop exe (GmapPlanner.App) and the browser host. References only
+       GmapPlanner.Core; all host-specific work (files, Playwright, Drive, Sheets, Monitoring,
+       the updater) goes through Platform/IPlatformServices, implemented per host.
        Namespaces stay GmapPlanner.App.* so XAML xmlns and usings didn't have to move. -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- This library references Microsoft.Playwright transitively via GmapPlanner.Core.Publish,
-         so Microsoft.Playwright.targets runs here too and would otherwise leak the BUILD HOST's
-         node driver into the app's publish. Any library touching Playwright, directly or
-         transitively, bundles no driver — the app (which knows its target RID) copies the right one. -->
-    <PlaywrightPlatform>none</PlaywrightPlatform>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,7 +19,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GmapPlanner.Core\GmapPlanner.Core.csproj" />
-    <ProjectReference Include="..\GmapPlanner.Core.Publish\GmapPlanner.Core.Publish.csproj" />
   </ItemGroup>
 
 </Project>

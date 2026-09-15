@@ -13,7 +13,7 @@ public partial class MainView : UserControl
         InitializeComponent();
 
         BrowseInputButton.Click += async (_, _) => await SafeAsync(BrowseInputFileAsync);
-        DownloadButton.Click += async (_, _) => await SafeAsync(DownloadKmlFilesAsync);
+        DownloadButton.Click += async (_, _) => await SafeAsync(() => Vm?.SaveKmlFilesAsync(Storage) ?? Task.CompletedTask);
         SetupBundleButton.Click += async (_, _) => await SafeAsync(BrowseSetupBundleAsync);
         CredentialsButton.Click += async (_, _) => await SafeAsync(BrowseCredentialsAsync);
 
@@ -22,13 +22,10 @@ public partial class MainView : UserControl
         EmailEntry.KeyDown += OnEmailEntryKeyDown;
         EmailEntry.LostFocus += (_, _) => CommitEmailEntry();
 
-        DragDrop.SetAllowDrop(DropZone, true);
-        DropZone.AddHandler(DragDrop.DragOverEvent, OnDragOver);
-        DropZone.AddHandler(DragDrop.DropEvent, OnDrop);
-
-        // Drop a file straight onto the Settings pickers instead of browsing for it.
-        EnableFileDrop(SetupBundleButton, (vm, p) => vm.ApplySetupBundleFile(p));
-        EnableFileDrop(CredentialsButton, (vm, p) => vm.SetDriveCredentialsFile(p));
+        // Drop a file onto the itinerary zone, or straight onto the Settings pickers.
+        EnableFileDrop(DropZone, (vm, f) => vm.LoadInputFileAsync(f));
+        EnableFileDrop(SetupBundleButton, (vm, f) => vm.LoadSetupBundleAsync(f));
+        EnableFileDrop(CredentialsButton, (vm, f) => vm.LoadDriveCredentialsAsync(f));
 
         // Hold the eye to reveal a masked API key; release (or leave) re-masks it.
         WireHoldReveal(GeminiKeyEye, GeminiKeyBox);
@@ -37,9 +34,11 @@ public partial class MainView : UserControl
         // Load the usage gauge once the view is up, on the UI thread so binding is safe.
         Loaded += async (_, _) =>
         {
-            if (DataContext is MainViewModel vm) await vm.RefreshUsageAsync();
+            if (Vm is { } vm) await vm.RefreshUsageAsync();
         };
     }
+
+    private MainViewModel? Vm => DataContext as MainViewModel;
 
     /// <summary>The hosting window's (or browser's) storage provider, for the file/folder pickers.</summary>
     private IStorageProvider Storage => TopLevel.GetTopLevel(this)!.StorageProvider;
@@ -64,18 +63,28 @@ public partial class MainView : UserControl
 
     private async Task BrowseSetupBundleAsync()
     {
-        if (DataContext is not MainViewModel vm) return;
-        var files = await Storage.OpenFilePickerAsync(JsonPicker("Choose a setup file"));
-        var path = files.FirstOrDefault()?.TryGetLocalPath();
-        if (path is not null) vm.ApplySetupBundleFile(path);
+        var file = (await Storage.OpenFilePickerAsync(JsonPicker("Choose a setup file"))).FirstOrDefault();
+        if (file is not null && Vm is { } vm) await vm.LoadSetupBundleAsync(file);
     }
 
     private async Task BrowseCredentialsAsync()
     {
-        if (DataContext is not MainViewModel vm) return;
-        var files = await Storage.OpenFilePickerAsync(JsonPicker("Choose the Drive credentials.json"));
-        var path = files.FirstOrDefault()?.TryGetLocalPath();
-        if (path is not null) vm.SetDriveCredentialsFile(path);
+        var file = (await Storage.OpenFilePickerAsync(JsonPicker("Choose the Drive credentials.json"))).FirstOrDefault();
+        if (file is not null && Vm is { } vm) await vm.LoadDriveCredentialsAsync(file);
+    }
+
+    private async Task BrowseInputFileAsync()
+    {
+        var file = (await Storage.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Choose an itinerary",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Itinerary (*.pdf, *.txt)") { Patterns = ["*.pdf", "*.txt"] },
+            ],
+        })).FirstOrDefault();
+        if (file is not null && Vm is { } vm) await vm.LoadInputFileAsync(file);
     }
 
     /// <summary>
@@ -88,34 +97,23 @@ public partial class MainView : UserControl
         {
             await action();
         }
-        catch (Exception e) when (DataContext is MainViewModel vm)
+        catch (Exception e) when (Vm is { } vm)
         {
             vm.ErrorText = e.Message;
         }
     }
 
-    private void OnDragOver(object? sender, DragEventArgs e) =>
-        e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None;
-
-    private void OnDrop(object? sender, DragEventArgs e)
-    {
-        if (DataContext is not MainViewModel vm) return;
-        var path = e.Data.GetFiles()?.FirstOrDefault()?.TryGetLocalPath();
-        if (path is not null) vm.SetInputFile(path);
-    }
-
-    /// <summary>Lets a control accept a dropped file, handing the first local path to the VM.</summary>
-    private void EnableFileDrop(Control target, Action<MainViewModel, string> onFile)
+    /// <summary>Lets a control accept a dropped file, handing the first file to the VM.</summary>
+    private void EnableFileDrop(Control target, Func<MainViewModel, IStorageFile, Task> onFile)
     {
         DragDrop.SetAllowDrop(target, true);
         target.AddHandler(DragDrop.DragOverEvent, (_, e) =>
             e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None);
-        target.AddHandler(DragDrop.DropEvent, (_, e) =>
+        target.AddHandler(DragDrop.DropEvent, async (_, e) => await SafeAsync(async () =>
         {
-            if (DataContext is not MainViewModel vm) return;
-            var path = e.Data.GetFiles()?.FirstOrDefault()?.TryGetLocalPath();
-            if (path is not null) onFile(vm, path);
-        });
+            if (e.Data.GetFiles()?.OfType<IStorageFile>().FirstOrDefault() is { } file && Vm is { } vm)
+                await onFile(vm, file);
+        }));
     }
 
     /// <summary>Reveals a password TextBox while the eye is held (tunnel, so the Button can't swallow it).</summary>
@@ -127,36 +125,6 @@ public partial class MainView : UserControl
         eye.PointerExited += (_, _) => box.RevealPassword = false;
     }
 
-    private async Task BrowseInputFileAsync()
-    {
-        if (DataContext is not MainViewModel vm) return;
-
-        var files = await Storage.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Choose an itinerary",
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("Itinerary (*.pdf, *.txt)") { Patterns = ["*.pdf", "*.txt"] },
-            ],
-        });
-        var path = files.FirstOrDefault()?.TryGetLocalPath();
-        if (path is not null) vm.SetInputFile(path);
-    }
-
-    private async Task DownloadKmlFilesAsync()
-    {
-        if (DataContext is not MainViewModel vm || vm.ResultFiles.Count == 0) return;
-
-        var folders = await Storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = "Save KML files to…",
-            AllowMultiple = false,
-        });
-        var path = folders.FirstOrDefault()?.TryGetLocalPath();
-        if (path is not null) vm.SaveKmlFilesTo(path);
-    }
-
     private void OnEmailEntryKeyDown(object? sender, KeyEventArgs e)
     {
         if (sender is not TextBox tb) return;
@@ -164,7 +132,7 @@ public partial class MainView : UserControl
         // Backspace with nothing typed removes the last chip.
         if (e.Key == Key.Back && string.IsNullOrEmpty(tb.Text))
         {
-            (DataContext as MainViewModel)?.RemoveLastEmail();
+            Vm?.RemoveLastEmail();
             return;
         }
 
@@ -178,7 +146,7 @@ public partial class MainView : UserControl
     /// <summary>Turns whatever is in the entry box into chips and clears it. True if it had text.</summary>
     private bool CommitEmailEntry()
     {
-        if (DataContext is not MainViewModel vm || string.IsNullOrWhiteSpace(EmailEntry.Text)) return false;
+        if (Vm is not { } vm || string.IsNullOrWhiteSpace(EmailEntry.Text)) return false;
         vm.AddEmails(EmailEntry.Text);
         EmailEntry.Text = "";
         return true;

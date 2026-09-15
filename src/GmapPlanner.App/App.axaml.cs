@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using GmapPlanner.App.Platform;
 using GmapPlanner.App.ViewModels;
 using GmapPlanner.App.Views;
 
@@ -19,7 +20,7 @@ public partial class App : Application
         {
             desktop.MainWindow = new MainWindow
             {
-                DataContext = new MainViewModel(),
+                DataContext = new MainViewModel(new DesktopPlatformServices()),
             };
         }
 

@@ -1,4 +1,6 @@
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
+using GmapPlanner.Core.Services;
 
 namespace GmapPlanner.App.ViewModels;
 
@@ -8,10 +10,10 @@ namespace GmapPlanner.App.ViewModels;
 /// </summary>
 public partial class KmlFileItem : ObservableObject
 {
+    public required KmlFile File { get; init; }
     public required string DayLabel { get; init; }
-    public required string FileName { get; init; }
     public required string SizeText { get; init; }
-    public required string Path { get; init; }
+    public string FileName => File.FileName;
 
     [ObservableProperty] private string _mapUrl = "";
     [ObservableProperty] private string _sharedWith = "";
@@ -20,15 +22,14 @@ public partial class KmlFileItem : ObservableObject
     public bool HasMap => MapUrl.Length > 0;
     partial void OnMapUrlChanged(string value) => OnPropertyChanged(nameof(HasMap));
 
-    public static KmlFileItem FromPath(string path)
+    public static KmlFileItem From(KmlFile file)
     {
-        var label = System.IO.Path.GetFileNameWithoutExtension(path);
+        var label = Path.GetFileNameWithoutExtension(file.FileName);
         return new KmlFileItem
         {
+            File = file,
             DayLabel = label.Contains('-') ? $"Days {label}" : $"Day {label}",
-            FileName = System.IO.Path.GetFileName(path),
-            SizeText = $"{new FileInfo(path).Length / 1024.0:F0} KB",
-            Path = path,
+            SizeText = $"{Encoding.UTF8.GetByteCount(file.Content) / 1024.0:F0} KB",
         };
     }
 }
