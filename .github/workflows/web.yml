@@ -50,7 +50,9 @@ jobs:
           export VERCEL_PROJECT_ID=$(printf '%s' "$VERCEL_PROJECT_ID" | tr -d '\r\n')
           PROD_FLAG=""
           if [ "$GITHUB_REF" = "refs/heads/main" ]; then PROD_FLAG="--prod"; fi
-          # Pinned: a floating vercel@latest can change CLI flags/output under us.
-          URL=$(npx --yes vercel@39 deploy publish/browser/wwwroot $PROD_FLAG --yes --token "$TOKEN")
+          # Pinned for reproducibility (a floating @latest can change flags/output under us).
+          # Vercel enforces a server-side minimum CLI version, so bump this when a deploy
+          # fails with "Your Vercel CLI version is outdated".
+          URL=$(npx --yes vercel@59 deploy publish/browser/wwwroot $PROD_FLAG --yes --token "$TOKEN")
           echo "Deployed: $URL"
           echo "### Deployed to $URL" >> "$GITHUB_STEP_SUMMARY"
