@@ -191,7 +191,7 @@
                             <TextBlock Text="Drag &amp; drop your itinerary here"
                                        HorizontalAlignment="Center" FontWeight="SemiBold" />
                             <TextBlock Classes="caption" HorizontalAlignment="Center"
-                                       Text="One PDF or TXT file at a time, up to 15 MB." />
+                                       Text="{Binding UploadHint}" />
                             <Button Name="BrowseInputButton" Content="Browse files"
                                     HorizontalAlignment="Center" Margin="0,4,0,0" />
                             <TextBlock Text="{Binding InputFileName}" HorizontalAlignment="Center"

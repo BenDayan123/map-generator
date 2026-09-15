@@ -22,6 +22,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>What this host supports; the view binds visibility to it.</summary>
     public PlatformFeatures Features => _platform.Features;
 
+    /// <summary>Drop-zone caption; the size cap follows the host (15 MB desktop, 14 MB browser).</summary>
+    public string UploadHint => $"One PDF or TXT file at a time, up to {Features.MaxUploadMb} MB.";
+
     // --- Navigation ---------------------------------------------------------
     public enum AppPage { MakeMap, Analytics, Settings }
 

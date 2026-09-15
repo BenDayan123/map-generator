@@ -30,4 +30,13 @@ const dotnetRuntime = await dotnet
     .create();
 
 const config = dotnetRuntime.getConfig();
-await dotnetRuntime.runMain(config.mainAssemblyName, [globalThis.location.href]);
+try {
+    await dotnetRuntime.runMain(config.mainAssemblyName, [globalThis.location.href]);
+} catch (e) {
+    // A startup crash otherwise vanishes behind the loading splash.
+    const msg = e && (e.stack || e.message) ? String(e.stack || e.message) : String(e);
+    document.body.innerHTML =
+        '<pre style="color:#f88;white-space:pre-wrap;padding:16px;font:12px/1.5 monospace">BOOT ERROR:\n' +
+        msg.replace(/[<&]/g, c => (c === '<' ? '&lt;' : '&amp;')) + '</pre>';
+    console.error(e);
+}
