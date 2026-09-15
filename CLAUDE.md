@@ -305,6 +305,16 @@ one are the same platform.
   **Other**, **no** Build Command, and an **empty** Root Directory — the CLI uploads a
   pre-built `wwwroot`, so any Vercel-side build would just fail.
 
+### Cloud API (phase 3)
+
+`web/api/usage.ts` and `web/api/analytics.ts` are stateless Vercel Node functions that sign
+the SA JWT and call Cloud Monitoring / Sheets on the browser host's behalf — the SA JSON is
+sent per-request in the POST body and is never stored server-side. The deploy now ships the
+whole `web/` root in one Vercel deployment: `web/vercel.json`'s `outputDirectory` points at
+`web/public/` (static site, assembled in CI from the WASM `wwwroot`) alongside `web/api/`
+(the functions), still via the pinned `vercel@59 deploy web`, main → production / other
+branches → preview.
+
 ## Not ported (yet)
 
 Streamlit UI (`streamlit_app.py`, `pages/`) and the pywebview desktop wrapper — Avalonia

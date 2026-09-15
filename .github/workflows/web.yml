@@ -6,7 +6,7 @@ name: Web
 on:
   push:
     branches: [main, feature/cloud-hosting]
-    paths: ['src/**', 'tests/**', '.github/workflows/web.yml']
+    paths: ['src/**', 'tests/**', '.github/workflows/web.yml', 'web/**']
   workflow_dispatch:
 
 concurrency:
@@ -37,6 +37,11 @@ jobs:
       - name: Publish browser app
         run: dotnet publish src/GmapPlanner.App.Browser -c Release -o publish/browser
 
+      - name: Assemble Vercel deploy root
+        run: |
+          rm -rf web/public && mkdir -p web/public
+          cp -r publish/browser/wwwroot/* web/public/
+
       - name: Deploy to Vercel
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -53,6 +58,6 @@ jobs:
           # Pinned for reproducibility (a floating @latest can change flags/output under us).
           # Vercel enforces a server-side minimum CLI version, so bump this when a deploy
           # fails with "Your Vercel CLI version is outdated".
-          URL=$(npx --yes vercel@59 deploy publish/browser/wwwroot $PROD_FLAG --yes --token "$TOKEN")
+          URL=$(npx --yes vercel@59 deploy web $PROD_FLAG --yes --token "$TOKEN")
           echo "Deployed: $URL"
           echo "### Deployed to $URL" >> "$GITHUB_STEP_SUMMARY"

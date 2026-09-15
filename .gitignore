@@ -26,3 +26,4 @@ output/
 
 # web/ (Vercel functions)
 web/node_modules/
+web/public/

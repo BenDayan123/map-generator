@@ -1,4 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": { "api/*.ts": { "runtime": "@vercel/node@5" } }
+  "functions": { "api/*.ts": { "runtime": "@vercel/node@5" } },
+  "outputDirectory": "public"
 }
