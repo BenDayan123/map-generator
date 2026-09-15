@@ -23,3 +23,6 @@ output/
 .vs/
 .idea/
 *.user
+
+# web/ (Vercel functions)
+web/node_modules/
