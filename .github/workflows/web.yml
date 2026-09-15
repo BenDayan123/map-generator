@@ -43,9 +43,14 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
+          # A GitHub secret can keep a trailing newline from a copy-paste; the Vercel CLI
+          # rejects a --token (and mis-links an org/project id) that contains "\n". Strip CR/LF.
+          TOKEN=$(printf '%s' "$VERCEL_TOKEN" | tr -d '\r\n')
+          export VERCEL_ORG_ID=$(printf '%s' "$VERCEL_ORG_ID" | tr -d '\r\n')
+          export VERCEL_PROJECT_ID=$(printf '%s' "$VERCEL_PROJECT_ID" | tr -d '\r\n')
           PROD_FLAG=""
           if [ "$GITHUB_REF" = "refs/heads/main" ]; then PROD_FLAG="--prod"; fi
           # Pinned: a floating vercel@latest can change CLI flags/output under us.
-          URL=$(npx --yes vercel@39 deploy publish/browser/wwwroot $PROD_FLAG --yes --token "$VERCEL_TOKEN")
+          URL=$(npx --yes vercel@39 deploy publish/browser/wwwroot $PROD_FLAG --yes --token "$TOKEN")
           echo "Deployed: $URL"
           echo "### Deployed to $URL" >> "$GITHUB_STEP_SUMMARY"
