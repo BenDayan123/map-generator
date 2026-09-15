@@ -12,6 +12,7 @@ globalThis.gmapPlanner = {
     openUrl: (url) => {
         window.open(url, '_blank', 'noopener');
     },
+    origin: () => location.origin,
     downloadText: (fileName, content, mimeType) => {
         const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
         const link = document.createElement('a');

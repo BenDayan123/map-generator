@@ -12,6 +12,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="GmapPlanner.Core.Tests" />
     <InternalsVisibleTo Include="GmapPlanner.Core.Publish" />
+    <InternalsVisibleTo Include="GmapPlanner.App.Browser" />
   </ItemGroup>
 
   <ItemGroup>

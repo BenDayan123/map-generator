@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices.JavaScript;
 using System.Runtime.Versioning;
 using Avalonia.Platform.Storage;
+using GmapPlanner.App.Browser;
 using GmapPlanner.Core.Services;
 
 namespace GmapPlanner.App.Platform;
@@ -16,7 +17,12 @@ public sealed partial class BrowserPlatformServices : IPlatformServices
     private const string SettingsKey = "gmapplanner.settings";
     private const string KmlMimeType = "application/vnd.google-earth.kml+xml";
 
-    public PlatformFeatures Features { get; } = new(Publish: false, Analytics: false, Updates: false, InlineFiles: true, MaxUploadMb: 14);
+    // Origin() is a JS interop call, so the HttpClient/BrowserApi are built lazily on first
+    // use rather than in a field initializer (which could run before the runtime is ready).
+    private BrowserApi? _api;
+    private BrowserApi Api => _api ??= new BrowserApi(new HttpClient { BaseAddress = new Uri(Origin()) });
+
+    public PlatformFeatures Features { get; } = new(Publish: false, Analytics: true, Updates: false, InlineFiles: true, MaxUploadMb: 14);
 
     public AppSettings LoadSettings() => AppSettingsService.FromJson(GetItem(SettingsKey));
 
@@ -35,10 +41,10 @@ public sealed partial class BrowserPlatformServices : IPlatformServices
         return Task.FromResult($"Downloaded {files.Count} file(s).");
     }
 
-    public Task<UsageGauge?> GetUsageAsync(string serviceAccountJson) => Task.FromResult<UsageGauge?>(null);
+    public Task<UsageGauge?> GetUsageAsync(string serviceAccountJson) => Api.GetUsageAsync(serviceAccountJson);
 
     public Task<IReadOnlyList<AnalyticsRow>?> FetchAnalyticsAsync(string serviceAccountJson, string sheetId) =>
-        Task.FromResult<IReadOnlyList<AnalyticsRow>?>(null);
+        Api.FetchAnalyticsAsync(serviceAccountJson, sheetId);
 
     public Task RecordTripAsync(string serviceAccountJson, string sheetId, string tripName, int maps, int places, IReadOnlyList<string> mapLinks) =>
         Task.CompletedTask;
@@ -70,4 +76,7 @@ public sealed partial class BrowserPlatformServices : IPlatformServices
 
     [JSImport("globalThis.gmapPlanner.downloadText")]
     private static partial void DownloadText(string fileName, string content, string mimeType);
+
+    [JSImport("globalThis.gmapPlanner.origin")]
+    private static partial string Origin();
 }
