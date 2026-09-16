@@ -22,3 +22,10 @@ export function json(body: unknown, status = 200, extra: Record<string, string> 
 export async function readJson<T>(req: Request): Promise<T> {
   return (await req.json()) as T;
 }
+
+/** The `<id>` from an `/api/jobs/<id>[/...]` path, or null. */
+export function jobIdFromUrl(req: Request): string | null {
+  const parts = new URL(req.url).pathname.split("/").filter(Boolean);
+  const i = parts.indexOf("jobs");
+  return i >= 0 && parts[i + 1] ? parts[i + 1] : null;
+}
