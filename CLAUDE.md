@@ -317,6 +317,46 @@ whole `web/` root in one Vercel deployment: `web/vercel.json`'s `outputDirectory
 (the functions), still via the pinned `vercel@59 deploy web`, main → production / other
 branches → preview.
 
+**Vercel Node functions must export `{ fetch }`, not a bare default.** These use the Web
+(`Request → Response`) signature. Vercel's Node runtime only treats that as a web handler when
+it's `export default { fetch: handler }` (or a named `export function POST`). A bare
+`export default async function(req: Request)` is invoked classic `(req, res)`-style, the returned
+`Response` is discarded, `res` is never ended, and **every request hangs until the function
+times out**. All handlers here use `export default { fetch: handler }`. `engines.node` is `22.x`
+(Vercel dropped Node 20).
+
+### Cloud publish (phase 4)
+
+My Maps has no import API, so publishing runs the Playwright `MyMapsSession` — which can't run in
+a Vercel function. It runs as a **GitHub Actions job in a private worker repo** the user owns,
+driven by a saved Google session the user makes locally.
+
+- **`GmapPlanner.LoginHelper`** (console) — headed My Maps login + Drive OAuth →
+  `session.json` (`SessionFile`: `storageState` + Drive `credentials`/`token`). The Drive token
+  file name is Google's `FileDataStore` convention, pinned in `SessionMaterializer`
+  (`Google.Apis.Auth.OAuth2.Responses.TokenResponse-user`) by a test.
+- **`GmapPlanner.Worker`** (console, on the runner) — `WorkerApi` claims/reports over
+  HMAC-SHA256 (lowercase hex over the raw body, matched to `web/api/_lib/crypto.ts` by a
+  cross-language vector test). It materializes the KMLs + Drive creds, runs
+  `MyMapsSession.StartFromStorageStateAsync` (a non-persistent, storage-state launch — additive to
+  the untouched desktop persistent-profile path), shares via `DriveShareService`, logs via
+  `SheetsAnalyticsService`, and posts a terminal status with map links + a **refreshed** session.
+  A re-challenged replay is gated to `SESSION_EXPIRED` (via `MyMapsSession.IsLoggedInAsync`), never
+  a mid-batch crash. The desktop publish loop is reused as `PublishService.PublishWithAsync`.
+- **Jobs API** (`web/api/jobs/*`) — `POST /api/jobs` encrypts the payload (AES-256-GCM,
+  `_lib/crypto.ts`) into Blob storage (`_lib/blob.ts`, `@vercel/blob`) and dispatches the worker
+  repo (`_lib/dispatch.ts`); `:id/claim` and `:id/status` are HMAC-authed worker calls; `GET
+  :id` is the browser poll (the id is the capability). `/api/cron/cleanup` GCs blobs older than 1h.
+  Caps: 2 MB / 10 KMLs → 413. The browser can't reference `Core.Publish`, so its job DTOs live in
+  `Core/Json/ApiDtos.cs` and mirror `JobPayload`/`JobStatus` (camelCase on the wire).
+- **Browser wiring** — `BrowserPlatformServices.PublishAsync` submits + polls; a `session.json`
+  drop zone on Settings (gated by `PlatformFeatures.RequiresSession`) stores the session in
+  localStorage and the refreshed one comes back after each publish.
+- **Setup** — see `docs/worker-repo/README.md` for the private-repo workflow (`publish.yml`) and
+  the exact secrets: Vercel env `JOB_KEY` (32-byte hex), `WORKER_HMAC`, `WORKER_REPO`,
+  `GITHUB_TOKEN` (fine-grained, Actions:write on the worker repo only), `BLOB_READ_WRITE_TOKEN`;
+  worker repo secrets `API_BASE_URL`, `WORKER_HMAC`.
+
 ## Not ported (yet)
 
 Streamlit UI (`streamlit_app.py`, `pages/`) and the pywebview desktop wrapper — Avalonia

@@ -1,0 +1,59 @@
+# Copy this into a PRIVATE GitHub repo as .github/workflows/publish.yml.
+# The Vercel /api/jobs function dispatches it (workflow_dispatch) with only a job id; the worker
+# then claims the encrypted payload over HMAC, publishes to My Maps, and posts status back.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   API_BASE_URL   the deployed site origin, e.g. https://my-maps-generator.vercel.app
+#   WORKER_HMAC    the same random secret set as WORKER_HMAC in the Vercel project env
+name: publish
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: Job id to claim
+        required: true
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # The worker CODE lives in the main app repo (public); this private repo only holds the
+      # workflow + secrets. Change 'repository' if you forked the app.
+      - uses: actions/checkout@v4
+        with:
+          repository: BenDayan123/map-generator
+          ref: main
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build worker
+        run: dotnet build src/GmapPlanner.Worker -c Release
+
+      - name: Install Chromium + system deps
+        run: pwsh src/GmapPlanner.Worker/bin/Release/net8.0/playwright.ps1 install --with-deps chromium
+
+      - name: Run publish worker
+        env:
+          JOB_ID: ${{ inputs.job_id }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          WORKER_HMAC: ${{ secrets.WORKER_HMAC }}
+        run: dotnet run --project src/GmapPlanner.Worker -c Release --no-build
+
+      # If any step above failed, tell the browser so the poll shows "failed" instead of timing out.
+      - name: Report failure
+        if: failure()
+        env:
+          JOB_ID: ${{ inputs.job_id }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          WORKER_HMAC: ${{ secrets.WORKER_HMAC }}
+        run: |
+          body='{"state":"failed","error":"worker run failed (see the Actions logs)"}'
+          sig=$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$WORKER_HMAC" -r | cut -d' ' -f1)
+          curl -s -X POST "$API_BASE_URL/api/jobs/$JOB_ID/status" \
+            -H "content-type: application/json" \
+            -H "x-worker-signature: $sig" \
+            --data "$body"
