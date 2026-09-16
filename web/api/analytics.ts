@@ -34,7 +34,7 @@ function parseIntStrict(s: string): number | null {
   return /^-?\d+$/.test(s) ? Number(s) : null;
 }
 
-export default async function handler(req: Request): Promise<Response> {
+async function handler(req: Request): Promise<Response> {
   const pre = preflight(req);
   if (pre) return pre;
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
@@ -91,3 +91,7 @@ export default async function handler(req: Request): Promise<Response> {
     return json({ error: String((e as Error).message ?? e) }, 502);
   }
 }
+
+// Vercel Node runtime recognizes a web (Request→Response) handler only as `{ fetch }`
+// or a named-method export — a bare default function is run (req,res)-style and hangs.
+export default { fetch: handler };
