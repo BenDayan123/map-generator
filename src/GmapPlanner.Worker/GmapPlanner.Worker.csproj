@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Runs via `dotnet run` on a Linux runner; leave PlaywrightPlatform default so the
+         host (linux-x64) node driver is resolved. Core.Publish itself bundles none. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="GmapPlanner.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Direct reference so Microsoft.Playwright.targets copies the driver into THIS app's output
+         (Core.Publish sets PlaywrightPlatform=none, so it copies nothing). -->
+    <PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GmapPlanner.Core.Publish\GmapPlanner.Core.Publish.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -291,6 +291,31 @@ public sealed class MyMapsSession : IAsyncDisposable
     }
 
     /// <summary>
+    /// Headed login (like <see cref="LoginAsync"/>) that returns the Playwright storage state once
+    /// signed in — the LoginHelper bakes it into session.json for the cloud worker to replay.
+    /// </summary>
+    public static async Task<JsonElement> LoginAndCaptureStorageStateAsync(
+        int timeoutSeconds = 300, Action<string>? log = null, CancellationToken ct = default)
+    {
+        await using var session = await StartAsync(headless: false, log: log);
+        var page = session.Context.Pages.FirstOrDefault() ?? await session.Context.NewPageAsync();
+        await page.GotoAsync(AppConfig.MyMapsHomeUrl, new() { WaitUntil = WaitUntilState.Load });
+
+        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
+        while (DateTime.UtcNow < deadline)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (await page.GetByText(MyMapsSelectors.CreateNew).CountAsync() > 0)
+                return await session.ExportStorageStateAsync();
+            await page.WaitForTimeoutAsync(2000);
+        }
+        throw new MyMapsException(session.OnBundledChromium
+            ? "Google sign-in needs Google Chrome or Microsoft Edge installed — it's blocked in the "
+              + "app's built-in browser. Please install Chrome, then run the login helper again."
+            : "Timed out waiting for the Google login.");
+    }
+
+    /// <summary>
     /// Clicks the first VISIBLE match for <paramref name="pattern"/>, trying
     /// button → link → text.
     ///

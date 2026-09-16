@@ -58,9 +58,28 @@ public static class PublishService
             if (recipients.Count > 0) throw;
         }
 
+        await using var session = await MyMapsSession.StartAsync(headless: headless, log: log);
+        return await PublishWithAsync(session, drive, kmlFiles, tripName, recipients, role, notify, progress, ct);
+    }
+
+    /// <summary>
+    /// The per-KML create → restrict → share loop over an already-open session and (optional) Drive
+    /// service. The desktop path builds those from the persistent profile / file OAuth; the cloud
+    /// worker passes a storage-state session and a Drive service built from the user's session.json.
+    /// </summary>
+    public static async Task<List<PublishedMap>> PublishWithAsync(
+        MyMapsSession session,
+        DriveShareService? drive,
+        IReadOnlyList<string> kmlFiles,
+        string tripName,
+        IReadOnlyList<string> recipients,
+        string role = "reader",
+        bool notify = true,
+        ProgressCallback? progress = null,
+        CancellationToken ct = default)
+    {
         var results = new List<PublishedMap>();
         var total = kmlFiles.Count;
-        await using var session = await MyMapsSession.StartAsync(headless: headless, log: log);
 
         for (var i = 0; i < total; i++)
         {
