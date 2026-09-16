@@ -128,7 +128,7 @@
                                 <Run Text="{Binding HasPublishSession, Converter={x:Static vm:BoolTick.Instance}}" />
                                 <Run Text="Cloud session loaded" />
                             </TextBlock>
-                            <TextBlock Classes="caption"
+                            <TextBlock Classes="caption" IsVisible="{Binding !HasPublishSession}"
                                        Text="Load your session.json on the Settings page (from the login helper) to enable publishing." />
                         </StackPanel>
 
