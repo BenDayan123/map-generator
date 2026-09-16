@@ -1,11 +1,13 @@
-import { put, del, list } from "@vercel/blob";
+import { put, del, list, get } from "@vercel/blob";
 
 // Thin wrapper over @vercel/blob keyed by a stable pathname (addRandomSuffix off), so a job's
-// blob can be read/deleted later by id alone. Stores ciphertext only. Uses BLOB_READ_WRITE_TOKEN
-// from the environment (Vercel injects it). Low volume, so resolving a pathname->url via list is fine.
+// blob can be read/deleted later by id alone. The store is PRIVATE (blobs need the token to read);
+// content is AES-GCM ciphertext regardless. Uses BLOB_READ_WRITE_TOKEN from the environment.
+
+const ACCESS = "private" as const;
 
 const PUT_OPTS = {
-  access: "public" as const,
+  access: ACCESS,
   addRandomSuffix: false,
   allowOverwrite: true,
   contentType: "text/plain",
@@ -15,26 +17,21 @@ export async function putBlob(pathname: string, content: string): Promise<void> 
   await put(pathname, content, PUT_OPTS);
 }
 
-/** The blob's public URL, or null if it doesn't exist. */
-async function urlFor(pathname: string): Promise<string | null> {
-  const { blobs } = await list({ prefix: pathname, limit: 1 });
-  const hit = blobs.find((b) => b.pathname === pathname);
-  return hit?.url ?? null;
-}
-
 /** The blob's text content, or null if missing. */
 export async function getBlob(pathname: string): Promise<string | null> {
-  const url = await urlFor(pathname);
-  if (!url) return null;
-  // Cache-bust: a just-overwritten blob can be briefly served stale from the edge.
-  const res = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
-  return res.ok ? await res.text() : null;
+  // useCache: false — a just-overwritten status blob must not read back stale from the CDN.
+  const res = await get(pathname, { access: ACCESS, useCache: false });
+  if (!res || res.statusCode !== 200) return null;
+  return await new Response(res.stream).text();
 }
 
 /** Deletes the blob if present (no-op otherwise). */
 export async function delBlob(pathname: string): Promise<void> {
-  const url = await urlFor(pathname);
-  if (url) await del(url);
+  try {
+    await del(pathname);
+  } catch {
+    // Already gone — nothing to do.
+  }
 }
 
 /** Deletes every blob under prefix older than maxAgeMs. Returns how many were removed. */
