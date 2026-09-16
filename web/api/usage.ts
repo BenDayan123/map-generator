@@ -2,7 +2,7 @@ import { getAccessToken } from "./_lib/googleAuth.js";
 import { readJson, json, preflight } from "./_lib/http.js";
 
 // Mirrors GmapPlanner.Core.Publish/Services/UsageService.cs — keep in sync.
-const LIMIT = 5000; // AppConfig.GeoMonthlyLimit — Places Text Search Pro free cap
+const LIMIT = 10000; // AppConfig.GeoMonthlyLimit — monthly Places request cap for the usage ring
 const SCOPE = "https://www.googleapis.com/auth/monitoring.read"; // AppConfig.MonitoringScope
 const SERVICE = "places.googleapis.com"; // AppConfig.GeocodeService
 const ZONE = "America/Los_Angeles"; // Google quotas reset on Pacific time

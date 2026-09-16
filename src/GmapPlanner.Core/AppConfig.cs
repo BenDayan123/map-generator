@@ -63,8 +63,8 @@ public static class AppConfig
     // Reads the real Places API (New) request count for the month and shows it as
     // "percent of quota used". Needs a service account with roles/monitoring.viewer
     // and the Cloud Monitoring API enabled; degrades to hidden when not configured.
-    // 5,000 = the monthly free cap for Text Search Pro (the SKU PlacesFieldMask bills).
-    public const int GeoMonthlyLimit = 5000;
+    // Monthly Places (Text Search) request cap the usage ring is measured against.
+    public const int GeoMonthlyLimit = 10000;
     public const string MonitoringScope = "https://www.googleapis.com/auth/monitoring.read";
     public const string GeocodeService = "places.googleapis.com";
 
