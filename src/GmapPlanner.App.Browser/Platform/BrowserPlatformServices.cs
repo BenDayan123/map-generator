@@ -1,7 +1,9 @@
 using System.Runtime.InteropServices.JavaScript;
 using System.Runtime.Versioning;
+using System.Text.Json;
 using Avalonia.Platform.Storage;
 using GmapPlanner.App.Browser;
+using GmapPlanner.Core.Json;
 using GmapPlanner.Core.Services;
 
 namespace GmapPlanner.App.Platform;
@@ -15,6 +17,7 @@ namespace GmapPlanner.App.Platform;
 public sealed partial class BrowserPlatformServices : IPlatformServices
 {
     private const string SettingsKey = "gmapplanner.settings";
+    private const string SessionKey = "gmapplanner.session";
     private const string KmlMimeType = "application/vnd.google-earth.kml+xml";
 
     // Origin() is a JS interop call, so the HttpClient/BrowserApi are built lazily on first
@@ -24,7 +27,8 @@ public sealed partial class BrowserPlatformServices : IPlatformServices
     // the default 100s (the functions themselves cap at Vercel's max duration anyway).
     private BrowserApi Api => _api ??= new BrowserApi(new HttpClient { BaseAddress = new Uri(Origin()), Timeout = TimeSpan.FromSeconds(20) });
 
-    public PlatformFeatures Features { get; } = new(Publish: false, Analytics: true, Updates: false, InlineFiles: true, MaxUploadMb: 14);
+    public PlatformFeatures Features { get; } = new(
+        Publish: true, Analytics: true, Updates: false, InlineFiles: true, MaxUploadMb: 14, RequiresSession: true);
 
     public AppSettings LoadSettings() => AppSettingsService.FromJson(GetItem(SettingsKey));
 
@@ -36,6 +40,14 @@ public sealed partial class BrowserPlatformServices : IPlatformServices
         throw new NotSupportedException("Drive credentials aren't used by the web version yet.");
 
     public void OpenUrl(string url) => OpenUrlJs(url);
+
+    public string? LoadSession()
+    {
+        var s = GetItem(SessionKey);
+        return string.IsNullOrWhiteSpace(s) ? null : s;
+    }
+
+    public void SaveSession(string sessionJson) => SetItem(SessionKey, sessionJson);
 
     public Task<string> SaveKmlFilesAsync(IStorageProvider storage, IReadOnlyList<KmlFile> files)
     {
@@ -51,13 +63,68 @@ public sealed partial class BrowserPlatformServices : IPlatformServices
     public Task RecordTripAsync(string serviceAccountJson, string sheetId, string tripName, int maps, int places, IReadOnlyList<string> mapLinks) =>
         Task.CompletedTask;
 
-    public Task<IReadOnlyList<MapResult>> PublishAsync(
+    public async Task<IReadOnlyList<MapResult>> PublishAsync(
         string tripName, IReadOnlyList<KmlFile> files, IReadOnlyList<string> recipients,
-        string role, bool notify, bool showBrowser, ProgressCallback progress) =>
-        throw new NotSupportedException("Publishing to My Maps isn't available in the web version yet.");
+        string role, bool notify, bool showBrowser, ProgressCallback progress)
+    {
+        var sessionJson = LoadSession()
+            ?? throw new InvalidOperationException(
+                "Load your session.json on the Settings page first (run the login helper to create it).");
+        JsonElement session;
+        try { session = JsonDocument.Parse(sessionJson).RootElement.Clone(); }
+        catch { throw new InvalidOperationException("The saved session.json isn't valid JSON — load it again."); }
+
+        // The SA JSON / Sheet id ride along so the worker can log the run (optional).
+        var settings = LoadSettings();
+        JsonElement? saJson = TryParse(settings.GcpSaJson);
+        var sheetId = string.IsNullOrWhiteSpace(settings.AnalyticsSheetId) ? null : settings.AnalyticsSheetId;
+
+        var req = new JobSubmitRequest(
+            tripName,
+            files.Select(f => new JobKmlDto(f.FileName, f.Content)).ToList(),
+            recipients, role, notify, session, saJson, sheetId);
+
+        progress("Submitting the publish job…", 0.05);
+        var id = await Api.SubmitJobAsync(req);
+
+        // Poll to a terminal state. 10 min cap; a stalled worker never hangs the UI forever.
+        var deadline = DateTime.UtcNow.AddMinutes(10);
+        JobPollResponse? status = null;
+        while (DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(5000);
+            var s = await Api.PollJobAsync(id);
+            if (s is null) continue;
+            status = s;
+            if (!string.IsNullOrEmpty(s.Message)) progress(s.Message!, 0.5);
+            if (s.State is "done" or "failed") break;
+        }
+        if (status is null || status.State is not ("done" or "failed"))
+            throw new InvalidOperationException("Publishing timed out — check the worker run and try again.");
+
+        // Save the rotated session back so the next publish works without re-login.
+        if (status.RefreshedSession is { } refreshed)
+            SaveSession(refreshed.GetRawText());
+
+        if (status.State == "failed")
+            throw new InvalidOperationException(status.ErrorCode == "SESSION_EXPIRED"
+                ? "Your saved Google session expired — run the login helper again and reload session.json."
+                : status.Error ?? "Publishing failed.");
+
+        return (status.Maps ?? [])
+            .Select(m => new MapResult(m.FileName, m.Url, m.SharedWith, m.Error))
+            .ToList();
+    }
+
+    private static JsonElement? TryParse(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try { return JsonDocument.Parse(json).RootElement.Clone(); }
+        catch { return null; }
+    }
 
     public Task LoginAsync() =>
-        throw new NotSupportedException("Google login isn't available in the web version yet.");
+        throw new NotSupportedException("The web version publishes with a session.json from the login helper.");
 
     public Task<bool> IsLoggedInAsync() => Task.FromResult(false);
 

@@ -77,6 +77,10 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _loginStatus = "";
     [ObservableProperty] private bool _isLoggingIn;
 
+    // Cloud publish (browser): a session.json from the login helper, kept in localStorage.
+    [ObservableProperty] private bool _hasPublishSession;
+    [ObservableProperty] private string _sessionStatus = "";
+
     public string[] ShareRoles { get; } = ["viewer", "commenter", "editor"];
 
     private string SelectedRole =>
@@ -230,7 +234,29 @@ public partial class MainViewModel : ViewModelBase
         _geoApiKey = settings.GeoApiKey;
         _gcpSaJson = settings.GcpSaJson;
         _analyticsSheetId = settings.AnalyticsSheetId;
+        _hasPublishSession = _platform.LoadSession() is not null;
         RefreshSetupStatus();
+    }
+
+    /// <summary>Stores a session.json (from the login helper) for cloud publishing. Browser host only.</summary>
+    public void LoadSessionContent(string json)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("storageState", out _))
+            {
+                SessionStatus = "⚠️ That file doesn't look like a session.json (no storageState).";
+                return;
+            }
+            _platform.SaveSession(json);
+            HasPublishSession = true;
+            SessionStatus = "✅ Session loaded — cloud publishing is ready.";
+        }
+        catch
+        {
+            SessionStatus = "⚠️ Couldn't read that file as JSON.";
+        }
     }
 
     partial void OnGoogleApiKeyChanged(string value) => SaveSettings();
@@ -330,6 +356,9 @@ public partial class MainViewModel : ViewModelBase
             SetupMessage = $"Not a valid credentials.json: {e.Message}";
         }
     }
+
+    /// <summary>Loads a session.json file (login helper output) for cloud publishing.</summary>
+    public async Task LoadSessionFileAsync(IStorageFile file) => LoadSessionContent(await ReadTextAsync(file));
 
     /// <summary>
     /// Loads the live usage gauge (best-effort). Hidden when the host has no analytics, no
@@ -448,7 +477,10 @@ public partial class MainViewModel : ViewModelBase
             HasResult = true;
             StatusText = "";
 
-            if (PublishEnabled && Features.Publish) await PublishAsync(result.TripName, result.KmlFiles);
+            if (PublishEnabled && Features.Publish && (!Features.RequiresSession || HasPublishSession))
+                await PublishAsync(result.TripName, result.KmlFiles);
+            else if (PublishEnabled && Features.Publish && Features.RequiresSession && !HasPublishSession)
+                ErrorText = "Publishing is on, but no session.json is loaded — load one on the Settings page.";
 
             // Log the run to the analytics Google Sheet (best-effort; no-op if unconfigured).
             // Fire-and-forget: logging never throws, and a slow/unreachable Sheet must not keep

@@ -16,6 +16,7 @@ public partial class MainView : UserControl
         DownloadButton.Click += async (_, _) => await SafeAsync(() => Vm?.SaveKmlFilesAsync(Storage) ?? Task.CompletedTask);
         SetupBundleButton.Click += async (_, _) => await SafeAsync(BrowseSetupBundleAsync);
         CredentialsButton.Click += async (_, _) => await SafeAsync(BrowseCredentialsAsync);
+        SessionButton.Click += async (_, _) => await SafeAsync(BrowseSessionAsync);
 
         // Email token input: Enter/Tab/separators commit a chip; Backspace on empty pops one;
         // losing focus commits whatever's half-typed so it isn't silently lost.
@@ -26,6 +27,7 @@ public partial class MainView : UserControl
         EnableFileDrop(DropZone, (vm, f) => vm.LoadInputFileAsync(f));
         EnableFileDrop(SetupBundleButton, (vm, f) => vm.LoadSetupBundleAsync(f));
         EnableFileDrop(CredentialsButton, (vm, f) => vm.LoadDriveCredentialsAsync(f));
+        EnableFileDrop(SessionButton, (vm, f) => vm.LoadSessionFileAsync(f));
 
         // Hold the eye to reveal a masked API key; release (or leave) re-masks it.
         WireHoldReveal(GeminiKeyEye, GeminiKeyBox);
@@ -71,6 +73,12 @@ public partial class MainView : UserControl
     {
         var file = (await Storage.OpenFilePickerAsync(JsonPicker("Choose the Drive credentials.json"))).FirstOrDefault();
         if (file is not null && Vm is { } vm) await vm.LoadDriveCredentialsAsync(file);
+    }
+
+    private async Task BrowseSessionAsync()
+    {
+        var file = (await Storage.OpenFilePickerAsync(JsonPicker("Choose session.json"))).FirstOrDefault();
+        if (file is not null && Vm is { } vm) await vm.LoadSessionFileAsync(file);
     }
 
     private async Task BrowseInputFileAsync()

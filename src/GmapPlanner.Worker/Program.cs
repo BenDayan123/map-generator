@@ -66,8 +66,11 @@ try
         session, drive, kmlPaths, payload.TripName, payload.Recipients,
         role: payload.Role, notify: payload.Notify, progress: progress);
 
-    var mapDtos = maps.Where(m => string.IsNullOrEmpty(m.Error))
-        .Select(m => new JobMap(m.Title, m.ViewUrl)).ToList();
+    // Return every map (including per-file failures) so the browser can fill its result rows.
+    var mapDtos = maps
+        .Select(m => new JobMap(Path.GetFileName(m.File), m.Title, m.ViewUrl, m.SharedWith, m.Error))
+        .ToList();
+    var successful = maps.Where(m => string.IsNullOrEmpty(m.Error)).ToList();
 
     // Analytics is best-effort — logging must never fail a publish.
     if (payload.SaJson is { } sa && !string.IsNullOrWhiteSpace(payload.SheetId))
@@ -78,7 +81,7 @@ try
             using var http = new HttpClient();
             await new SheetsAnalyticsService(http).RecordPublishAsync(
                 sa.GetRawText(), payload.SheetId!, payload.TripName,
-                mapDtos.Count, places, mapDtos.Select(m => m.Url).ToList());
+                successful.Count, places, successful.Select(m => m.ViewUrl).ToList());
         }
         catch (Exception e)
         {
@@ -87,12 +90,11 @@ try
     }
 
     var refreshed = await session.ExportStorageStateAsync();
-    var anyError = maps.FirstOrDefault(m => !string.IsNullOrEmpty(m.Error))?.Error;
     await api.PostStatusAsync(new JobStatus(
-        State: mapDtos.Count == 0 && anyError is not null ? "failed" : "done",
-        Message: mapDtos.Count > 0 ? $"created {mapDtos.Count} map(s)" : null,
+        State: successful.Count == 0 && maps.Count > 0 ? "failed" : "done",
+        Message: $"created {successful.Count} map(s)",
         Maps: mapDtos,
-        Error: anyError,
+        Error: successful.Count == 0 ? maps.FirstOrDefault()?.Error : null,
         RefreshedSession: refreshed));
     return 0;
 }

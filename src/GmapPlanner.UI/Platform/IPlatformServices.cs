@@ -9,7 +9,8 @@ namespace GmapPlanner.App.Platform;
 /// <param name="Updates">The in-app updater card.</param>
 /// <param name="InlineFiles">Send PDFs to Gemini inline (the browser can't use the upload flow).</param>
 /// <param name="MaxUploadMb">Largest itinerary accepted.</param>
-public sealed record PlatformFeatures(bool Publish, bool Analytics, bool Updates, bool InlineFiles, int MaxUploadMb);
+/// <param name="RequiresSession">Publishing needs a loaded session.json (the cloud/browser host).</param>
+public sealed record PlatformFeatures(bool Publish, bool Analytics, bool Updates, bool InlineFiles, int MaxUploadMb, bool RequiresSession = false);
 
 /// <summary>One published map, host-agnostic.</summary>
 public sealed record MapResult(string FileName, string ViewUrl, IReadOnlyList<string> SharedWith, string Error);
@@ -32,6 +33,12 @@ public interface IPlatformServices
     void SaveDriveCredentials(string json);
 
     void OpenUrl(string url);
+
+    /// <summary>The saved cloud-publish session.json (opaque JSON), or null. Browser host only; desktop returns null.</summary>
+    string? LoadSession();
+
+    /// <summary>Persists the cloud-publish session.json. Browser host only; desktop is a no-op.</summary>
+    void SaveSession(string sessionJson);
 
     /// <summary>Hands the KML files to the user. Returns a status line, or "" if the user cancelled.</summary>
     Task<string> SaveKmlFilesAsync(IStorageProvider storage, IReadOnlyList<KmlFile> files);

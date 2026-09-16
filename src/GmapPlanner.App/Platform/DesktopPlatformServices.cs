@@ -31,6 +31,10 @@ public sealed class DesktopPlatformServices : IPlatformServices
 
     public void SaveDriveCredentials(string json) => File.WriteAllText(AppConfig.DriveCredentialsFile, json);
 
+    // The desktop publishes from its persistent Playwright profile, not a session.json.
+    public string? LoadSession() => null;
+    public void SaveSession(string sessionJson) { }
+
     public void OpenUrl(string url)
     {
         try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }

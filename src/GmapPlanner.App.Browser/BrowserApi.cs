@@ -28,6 +28,47 @@ internal sealed class BrowserApi
         catch { return null; }
     }
 
+    /// <summary>Submits a publish job; returns its id. Throws with the server's message on failure (surfaced in the banner).</summary>
+    public async Task<string> SubmitJobAsync(JobSubmitRequest req, CancellationToken ct = default)
+    {
+        using var res = await _http.PostAsJsonAsync("api/jobs", req, GmapPlannerJsonContext.Default.JobSubmitRequest, ct);
+        if (!res.IsSuccessStatusCode)
+            throw new InvalidOperationException(await ErrorMessageAsync(res, ct));
+        var dto = await res.Content.ReadFromJsonAsync(GmapPlannerJsonContext.Default.JobSubmitResponse, ct);
+        return dto?.Id ?? throw new InvalidOperationException("The server didn't return a job id.");
+    }
+
+    /// <summary>Polls a job's status. Returns null on a transient read failure (the caller keeps polling).</summary>
+    public async Task<JobPollResponse?> PollJobAsync(string id, CancellationToken ct = default)
+    {
+        try
+        {
+            using var res = await _http.GetAsync($"api/jobs/{id}", ct);
+            if (!res.IsSuccessStatusCode) return null;
+            return await res.Content.ReadFromJsonAsync(GmapPlannerJsonContext.Default.JobPollResponse, ct);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static async Task<string> ErrorMessageAsync(HttpResponseMessage res, CancellationToken ct)
+    {
+        try
+        {
+            var body = await res.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("error", out var err) && err.ValueKind == JsonValueKind.String)
+                return $"Publish request failed: {err.GetString()}";
+        }
+        catch
+        {
+            // Fall through to the status-code message.
+        }
+        return $"Publish request failed ({(int)res.StatusCode}).";
+    }
+
     public async Task<IReadOnlyList<AnalyticsRow>?> FetchAnalyticsAsync(string saJson, string sheetId, CancellationToken ct = default)
     {
         try

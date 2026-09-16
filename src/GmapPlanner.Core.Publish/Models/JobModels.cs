@@ -24,8 +24,13 @@ public sealed record JobPayload(
     JsonElement? SaJson,
     string? SheetId);
 
-/// <summary>One created My Maps map link.</summary>
-public sealed record JobMap(string Title, string Url);
+/// <summary>One published map, per source KML file — enough for the browser to fill its result rows.</summary>
+public sealed record JobMap(
+    string FileName,
+    string Title,
+    string Url,
+    IReadOnlyList<string> SharedWith,
+    string Error);
 
 /// <summary>
 /// Status the Worker posts and the browser polls. <see cref="RefreshedSession"/> carries the rotated

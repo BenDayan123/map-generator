@@ -488,6 +488,24 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Cloud publishing session (browser host only) -->
+                    <Border Classes="card" IsVisible="{Binding Features.RequiresSession}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="subhead" Text="Cloud publishing session" />
+                            <TextBlock Classes="caption"
+                                       Text="Run the login helper on your computer to sign in once and produce session.json, then load it here. It's stored only in this browser and lets the cloud worker publish your maps." />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Name="SessionButton" Content="Choose session.json…" />
+                                <TextBlock Classes="caption" Text="…or drag the .json here" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock>
+                                <Run Text="{Binding HasPublishSession, Converter={x:Static vm:BoolTick.Instance}}" />
+                                <Run Text="Session loaded" />
+                            </TextBlock>
+                            <TextBlock Classes="caption" Text="{Binding SessionStatus}" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- Setup status -->
                     <Border Classes="card">
                         <StackPanel Spacing="8">
