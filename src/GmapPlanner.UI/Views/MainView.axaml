@@ -101,23 +101,36 @@
 
                     <TextBlock Classes="sideHeader" Text="PUBLISH TO MY MAPS" />
                     <TextBlock Classes="caption"
-                               Text="Creates a live Google My Maps map per file and shares it — drives a browser on this machine." />
+                               Text="Creates a live Google My Maps map per file and shares it." />
 
                     <ToggleSwitch Margin="0,8,0,0" IsChecked="{Binding PublishEnabled}"
                                   OnContent="Create &amp; share maps" OffContent="Create &amp; share maps" />
 
                     <StackPanel Spacing="8" IsVisible="{Binding PublishEnabled}">
-                        <Button HorizontalAlignment="Stretch"
-                                Command="{Binding LogInToGoogleCommand}" IsEnabled="{Binding !IsLoggingIn}">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Path Classes="icon" Width="15" Height="15" VerticalAlignment="Center" Data="{StaticResource IconLock}" />
-                                <TextBlock Text="Log in to Google" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-                        <Button Content="Check status" HorizontalAlignment="Stretch"
-                                Command="{Binding CheckLoginCommand}" IsEnabled="{Binding !IsLoggingIn}" />
-                        <TextBlock Classes="caption" Text="{Binding LoginStatus}"
-                                   IsVisible="{Binding LoginStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <!-- Desktop: sign in to Google here. -->
+                        <StackPanel Spacing="8" IsVisible="{Binding !Features.RequiresSession}">
+                            <Button HorizontalAlignment="Stretch"
+                                    Command="{Binding LogInToGoogleCommand}" IsEnabled="{Binding !IsLoggingIn}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Path Classes="icon" Width="15" Height="15" VerticalAlignment="Center" Data="{StaticResource IconLock}" />
+                                    <TextBlock Text="Log in to Google" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Content="Check status" HorizontalAlignment="Stretch"
+                                    Command="{Binding CheckLoginCommand}" IsEnabled="{Binding !IsLoggingIn}" />
+                            <TextBlock Classes="caption" Text="{Binding LoginStatus}"
+                                       IsVisible="{Binding LoginStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+
+                        <!-- Web: publishing runs in the cloud with a session.json loaded on the Settings page. -->
+                        <StackPanel Spacing="4" IsVisible="{Binding Features.RequiresSession}">
+                            <TextBlock>
+                                <Run Text="{Binding HasPublishSession, Converter={x:Static vm:BoolTick.Instance}}" />
+                                <Run Text="Cloud session loaded" />
+                            </TextBlock>
+                            <TextBlock Classes="caption"
+                                       Text="Load your session.json on the Settings page (from the login helper) to enable publishing." />
+                        </StackPanel>
 
                         <TextBlock Text="Share with (emails)" FontSize="13" Margin="0,4,0,0" />
                         <Border Classes="tokenBox">
@@ -152,9 +165,9 @@
 
                         <ToggleSwitch IsChecked="{Binding NotifyShare}"
                                       OnContent="Email people when shared" OffContent="Email people when shared" />
-                        <ToggleSwitch IsChecked="{Binding ShowBrowser}"
+                        <ToggleSwitch IsChecked="{Binding ShowBrowser}" IsVisible="{Binding !Features.RequiresSession}"
                                       OnContent="Show the browser" OffContent="Show the browser" />
-                        <TextBlock Classes="caption"
+                        <TextBlock Classes="caption" IsVisible="{Binding !Features.RequiresSession}"
                                    Text="Headless by default. Turn on to watch or debug the automation." />
                     </StackPanel>
                     </StackPanel>
