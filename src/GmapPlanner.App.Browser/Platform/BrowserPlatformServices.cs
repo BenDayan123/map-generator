@@ -20,7 +20,9 @@ public sealed partial class BrowserPlatformServices : IPlatformServices
     // Origin() is a JS interop call, so the HttpClient/BrowserApi are built lazily on first
     // use rather than in a field initializer (which could run before the runtime is ready).
     private BrowserApi? _api;
-    private BrowserApi Api => _api ??= new BrowserApi(new HttpClient { BaseAddress = new Uri(Origin()) });
+    // 20s cap so a stuck/misconfigured request errors to a clear message instead of spinning
+    // the default 100s (the functions themselves cap at Vercel's max duration anyway).
+    private BrowserApi Api => _api ??= new BrowserApi(new HttpClient { BaseAddress = new Uri(Origin()), Timeout = TimeSpan.FromSeconds(20) });
 
     public PlatformFeatures Features { get; } = new(Publish: false, Analytics: true, Updates: false, InlineFiles: true, MaxUploadMb: 14);
 
