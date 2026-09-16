@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using GmapPlanner.Core.Errors;
@@ -9,7 +10,10 @@ namespace GmapPlanner.Core.Services.Publish;
 /// <summary>My Maps automation failed (login, UI change, import timeout, ...).</summary>
 public class MyMapsException : PipelineException
 {
-    public MyMapsException(string message) : base(message) { }
+    /// <summary>Machine-readable code for a recoverable failure, e.g. <c>SESSION_EXPIRED</c>; null otherwise.</summary>
+    public string? ErrorCode { get; }
+
+    public MyMapsException(string message, string? errorCode = null) : base(message) { ErrorCode = errorCode; }
     public MyMapsException(string message, Exception inner) : base(message, inner) { }
 }
 
@@ -39,6 +43,7 @@ public sealed class MyMapsSession : IAsyncDisposable
     private readonly Action<string>? _log;
     private IPlaywright? _pw;
     private IBrowserContext? _ctx;
+    private IBrowser? _browser; // set only in storage-state (non-persistent) mode
     private int _mapsCreated;
 
     /// <summary>Which browser channel actually launched: "chrome"/"msedge", or null = bundled Chromium.</summary>
@@ -77,6 +82,74 @@ public sealed class MyMapsSession : IAsyncDisposable
 
     /// <summary>True when no real Chrome/Edge launched and we fell back to bundled Chromium.</summary>
     private bool OnBundledChromium => _launchedChannel is null;
+
+    /// <summary>
+    /// Cloud/worker mode: a fresh, non-persistent context seeded from a saved Playwright
+    /// storage state (the login the LoginHelper captured) instead of the desktop's persistent
+    /// profile. The runner has no profile on disk — storage state IS the login. Additive: the
+    /// desktop <see cref="StartAsync"/> / persistent path is unchanged.
+    /// </summary>
+    public static async Task<MyMapsSession> StartFromStorageStateAsync(
+        JsonElement storageState, bool headless = true, Action<string>? log = null)
+    {
+        var session = new MyMapsSession(AppConfig.PlaywrightProfileDir, headless, log);
+        await session.OpenFromStorageStateAsync(storageState);
+        return session;
+    }
+
+    private async Task OpenFromStorageStateAsync(JsonElement storageState)
+    {
+        await Task.Run(() =>
+        {
+            StripQuarantineMac();
+            EnsureDriverInstalled();
+        });
+        _pw = await Playwright.CreateAsync();
+
+        IBrowser? browser = null;
+        Exception? last = null;
+        foreach (var channel in new string?[] { "chrome", "msedge", null })
+        {
+            try
+            {
+                browser = await _pw.Chromium.LaunchAsync(new()
+                {
+                    Headless = _headless,
+                    Args = LaunchArgs,
+                    IgnoreDefaultArgs = IgnoreArgs,
+                    Channel = channel,
+                });
+                _launchedChannel = channel;
+                if (channel is null) Log("no Chrome/Edge found — using bundled Chromium (Google sign-in may be blocked)");
+                break;
+            }
+            catch (Exception e)
+            {
+                last = e;
+            }
+        }
+        if (browser is null)
+            throw new MyMapsException($"Couldn't launch a browser for My Maps: {last?.Message ?? "unknown error"}", last!);
+
+        _browser = browser;
+        // StorageState takes the state JSON directly (StorageStatePath would be a file).
+        _ctx = await browser.NewContextAsync(new() { StorageState = storageState.GetRawText() });
+    }
+
+    /// <summary>The refreshed storage state after a run, so the worker can rotate cookies back to the user.</summary>
+    public async Task<JsonElement> ExportStorageStateAsync()
+    {
+        var json = await Context.StorageStateAsync();
+        return JsonDocument.Parse(json).RootElement.Clone();
+    }
+
+    /// <summary>
+    /// True if the top-frame URL is a Google sign-in / consent page. When opening the My Maps
+    /// editor lands here, the replayed session was re-challenged — surfaced as SESSION_EXPIRED
+    /// rather than a bare timeout, so the UI can tell the user to re-run the login helper.
+    /// </summary>
+    internal static bool IsSignInRedirect(string url) =>
+        url.Contains("accounts.google.com", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Installs Playwright's Chromium if it isn't there yet. Mirrors ensure_chromium():
@@ -669,11 +742,18 @@ public sealed class MyMapsSession : IAsyncDisposable
         Log("opening My Maps home");
         await page.GotoAsync(AppConfig.MyMapsHomeUrl, new() { WaitUntil = WaitUntilState.Load });
 
+        // A replayed (storage-state) session that Google re-challenges lands on accounts.google.com.
+        if (IsSignInRedirect(page.Url))
+            throw new MyMapsException(
+                "Your saved Google session was rejected — please run the login helper again.",
+                errorCode: "SESSION_EXPIRED");
+
         if (await page.GetByText(MyMapsSelectors.SignedOut).CountAsync() > 0
             && await page.GetByText(MyMapsSelectors.CreateNew).CountAsync() == 0)
         {
             throw new MyMapsException(
-                "Not signed in to Google. Use 'Log in to Google' once and sign in.");
+                "Not signed in to Google. Use 'Log in to Google' once and sign in.",
+                errorCode: "SESSION_EXPIRED");
         }
 
         await page.WaitForTimeoutAsync(800); // let the home grid render
@@ -869,6 +949,7 @@ public sealed class MyMapsSession : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (_ctx is not null) await _ctx.CloseAsync();
+        if (_browser is not null) await _browser.CloseAsync(); // storage-state mode only
         _pw?.Dispose();
     }
 }
