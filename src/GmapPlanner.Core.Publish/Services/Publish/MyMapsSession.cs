@@ -170,7 +170,7 @@ public sealed class MyMapsSession : IAsyncDisposable
 
     /// <summary>
     /// On macOS, clears the com.apple.quarantine attribute from the bundled Playwright driver.
-    /// The .dmg is unsigned, so everything inside it is quarantined on download; the user's
+    /// The .dmg is ad-hoc signed, so a browser download quarantines everything inside it; the user's
     /// right-click → Open only clears the main app, leaving the nested unsigned `node` binary
     /// Playwright execs blocked ("developer cannot be verified"). Best-effort and no-op elsewhere.
     /// </summary>
