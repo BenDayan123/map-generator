@@ -43,8 +43,14 @@ public class UpdateServiceTests
         Assert.Contains("hdiutil attach", s);
         // ditto targets the .new location, so a failed copy keeps the old app intact.
         Assert.Contains("'/Applications/My Maps Generator.app.new'", s);
-        // mv into place comes after successful ditto.
-        Assert.True(s.IndexOf("ditto \"$NEW\"", StringComparison.Ordinal) < s.IndexOf("mv ", StringComparison.Ordinal));
+        // rename swap: old moved to .bak before .new is moved into place, so a failed second
+        // mv can restore the old app from .bak instead of leaving nothing behind.
+        Assert.Contains("'/Applications/My Maps Generator.app.bak'", s);
+        var bakMoveIdx = s.IndexOf("mv '/Applications/My Maps Generator.app' '/Applications/My Maps Generator.app.bak'", StringComparison.Ordinal);
+        var newMoveIdx = s.IndexOf("mv '/Applications/My Maps Generator.app.new' '/Applications/My Maps Generator.app'", StringComparison.Ordinal);
+        Assert.True(bakMoveIdx >= 0 && newMoveIdx >= 0 && bakMoveIdx < newMoveIdx);
+        // ditto happens before any of the renaming.
+        Assert.True(s.IndexOf("ditto \"$NEW\"", StringComparison.Ordinal) < bakMoveIdx);
         Assert.Contains("hdiutil detach", s);
         Assert.Contains("open ", s);
         // The script has a dmg fallback if ditto fails.

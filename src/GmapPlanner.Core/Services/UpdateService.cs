@@ -134,7 +134,8 @@ public class UpdateService(HttpClient http)
             }
             var script = Path.Combine(Path.GetTempPath(), "gmapplanner-update.sh");
             File.WriteAllText(script, MacSwapScript(installerPath, bundle, Environment.ProcessId));
-            // nohup + a new session so the script outlives this process.
+            // nohup + backgrounding so the script survives this process exiting; a Finder-launched
+            // app has no controlling terminal, so there's nothing else to detach it from.
             Process.Start(new ProcessStartInfo("/bin/bash")
             {
                 ArgumentList = { "-c", $"nohup /bin/bash {Quote(script)} >/dev/null 2>&1 &" },
@@ -172,9 +173,24 @@ public class UpdateService(HttpClient http)
         hdiutil attach {{Quote(dmgPath)}} -nobrowse -quiet -mountpoint "$MNT" || { open {{Quote(dmgPath)}}; exit 1; }
         NEW="$(find "$MNT" -maxdepth 1 -name '*.app' | head -n 1)"
         rm -rf {{Quote(bundlePath + ".new")}}
+        rm -rf {{Quote(bundlePath + ".bak")}}
         if [ -n "$NEW" ] && ditto "$NEW" {{Quote(bundlePath + ".new")}}; then
-          rm -rf {{Quote(bundlePath)}}
-          mv {{Quote(bundlePath + ".new")}} {{Quote(bundlePath)}}
+          if mv {{Quote(bundlePath)}} {{Quote(bundlePath + ".bak")}}; then
+            if mv {{Quote(bundlePath + ".new")}} {{Quote(bundlePath)}}; then
+              rm -rf {{Quote(bundlePath + ".bak")}}
+            else
+              mv {{Quote(bundlePath + ".bak")}} {{Quote(bundlePath)}}
+              rm -rf {{Quote(bundlePath + ".new")}}
+              hdiutil detach "$MNT" -quiet
+              open {{Quote(dmgPath)}}
+              exit 1
+            fi
+          else
+            rm -rf {{Quote(bundlePath + ".new")}}
+            hdiutil detach "$MNT" -quiet
+            open {{Quote(dmgPath)}}
+            exit 1
+          fi
         else
           rm -rf {{Quote(bundlePath + ".new")}}
           hdiutil detach "$MNT" -quiet

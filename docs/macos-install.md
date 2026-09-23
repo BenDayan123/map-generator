@@ -29,6 +29,8 @@ Run the same line again any time to reinstall.
 4. Open **System Settings** → **Privacy & Security**, scroll down to the message
    *"'My Maps Generator' was blocked…"* → click **Open Anyway** → enter your Mac password →
    click **Open Anyway** again.
+   (On macOS 14 Sonoma the message instead reads *"cannot be opened because Apple cannot
+   check it for malicious software"* — there, right-click the app → **Open** → **Open** also works.)
 5. The app opens. From now on it opens normally with a double-click.
 
 ## First-time setup inside the app

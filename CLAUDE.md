@@ -67,7 +67,8 @@ dotnet test
 dotnet run --project src/GmapPlanner.App
 ```
 
-Publish (small, self-contained, single file):
+Publish (small, self-contained; win-x64 is a single file, osx-arm64 is a folder — see the
+Playwright driver section below for why):
 
 ```bash
 dotnet publish src/GmapPlanner.App -c Release -r win-x64
@@ -79,9 +80,11 @@ terminal: `dotnet workload install wasm-tools-net8`); without it, a solution-wid
 `dotnet build` fails on `GmapPlanner.App.Browser` — build `src/GmapPlanner.App` directly
 instead. Run the site locally with `dotnet run --project src/GmapPlanner.App.Browser`.
 
-`GmapPlanner.App.csproj` sets `PublishSingleFile`, `SelfContained`, `PublishTrimmed`
-(`TrimMode=partial`). `InvariantGlobalization` is on for size; revisit if Hebrew text
-sorting/formatting (not rendering — that's unaffected) ever needs real culture data.
+`GmapPlanner.App.csproj` sets `SelfContained` and `PublishTrimmed` (`TrimMode=partial`) for
+both platforms; `PublishSingleFile` is win-x64 only — osx-arm64 publishes as a folder (the
+`.dmg` script needs the loose files to lay out the `.app` bundle). `InvariantGlobalization`
+is on for size; revisit if Hebrew text sorting/formatting (not rendering — that's unaffected)
+ever needs real culture data.
 
 ## Trimming rules — read before adding reflection-based code
 
@@ -244,7 +247,8 @@ and generation is `PipelineService.GenerateAsync` in memory.
 
 The browser is deliberately **not** bundled (that's what keeps the download reasonable);
 Playwright fetches Chromium on first publish. Playwright's own node driver *is* bundled
-and costs ~100MB — the app is ~230MB (win-x64) / ~290MB (osx-arm64) because of it.
+and costs ~100MB — the app is ~230MB (win-x64) / roughly ~290MB (osx-arm64, a folder publish
+that hasn't been re-measured) because of it.
 Swapping to PuppeteerSharp would bring it back to ~48MB at the cost of reimplementing
 the role/text selector helpers.
 
@@ -277,10 +281,13 @@ this wrong three ways before the fixes in `GmapPlanner.Core.Publish.csproj` / `G
    `win` from `$(RuntimeIdentifier)` so its build output holds the one correct driver.
    Left empty (a dev `dotnet run`) it falls through to the host driver, which is right for
    a local run.
-3. **Single-file strips the driver.** `PublishSingleFile` drops the loose
+3. **Single-file strips the driver — win-x64 only.** `PublishSingleFile` drops the loose
    `node/<platform>` folder from the publish dir (the bundler swallows the native node
    exe), but Playwright needs it on disk. The `RestorePlaywrightNodeDriver` target copies
    it back next to the exe after publish, and re-adds the `+x` bit on a non-Windows host.
+   osx-arm64 isn't single-file, so its folder publish keeps `.playwright` as-is; the .dmg
+   script (`make-macos-dmg.sh`) moves it into `Contents/Resources` and leaves a symlink at
+   `Contents/MacOS/.playwright` so Playwright still finds it at the path it expects.
 
 Net: `win-x64` publish ships only `win32_x64`, `osx-arm64` ships only `darwin-arm64`, no
 cross-contamination. Verify a driver change by listing `publish/.playwright/node/` — it

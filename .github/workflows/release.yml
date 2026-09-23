@@ -74,6 +74,7 @@ jobs:
           hdiutil attach build/MyMapsGenerator-osx-arm64.dmg -nobrowse -mountpoint "$MNT"
           APP="$MNT/My Maps Generator.app"
           codesign --verify --deep --strict --verbose=2 "$APP"
+          "$APP/Contents/MacOS/.playwright/node/darwin-arm64/node" --version
           "$APP/Contents/MacOS/GmapPlanner.App" &
           PID=$!
           sleep 20
