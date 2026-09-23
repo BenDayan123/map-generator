@@ -115,6 +115,43 @@ public class GeocodingService(HttpClient http, string apiKey)
         }
         return (corrected, fallback, null);
     }
+
+    /// <summary>
+    /// Picks the candidate whose display name best matches the extracted name. Google ranks
+    /// by relevance + prominence, so a popular place whose name merely *contains* the query
+    /// ("Nike Shibuya Scramble Square") can outrank the exact match ("Nike Shibuya").
+    /// Score = token Jaccard overlap against the name before its ", City" suffix. Only a
+    /// strictly higher score beats an earlier candidate, so ties keep Google's order.
+    /// </summary>
+    internal static PlaceDto? PickBest(IReadOnlyList<PlaceDto> places, string name)
+    {
+        var wanted = NameTokens(name.Split(',')[0]);
+        PlaceDto? best = null;
+        var bestScore = -1.0;
+        foreach (var place in places)
+        {
+            if (place.Location?.Latitude is null || place.Location.Longitude is null) continue;
+            var got = NameTokens(place.DisplayName?.Text ?? "");
+            var union = wanted.Union(got).Count();
+            var score = union == 0 ? 0 : (double)wanted.Intersect(got).Count() / union;
+            if (score > bestScore)
+            {
+                best = place;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Lowercase letter/digit tokens. Deliberately no Unicode normalization —
+    /// InvariantGlobalization is on (see CLAUDE.md), so stick to char-level APIs.
+    /// </summary>
+    internal static HashSet<string> NameTokens(string text)
+    {
+        var chars = text.Select(c => char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : ' ').ToArray();
+        return new string(chars).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+    }
 }
 
 internal record PlacesSearchResponseDto
