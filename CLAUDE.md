@@ -299,7 +299,8 @@ one are the same platform.
   temp, and apply — Windows runs the Inno installer `/SILENT` then `Environment.Exit`s so
   the files free up (installer relaunches via `installer.iss` `[Run] Check:WizardSilent`);
   macOS runs a detached script that swaps the `.app` bundle from the `.dmg` and relaunches
-  (`MacSwapScript`). All best-effort: any failure returns null so
+  (`MacSwapScript`; copies to `<bundle>.new` first and replaces the live bundle only if that
+  succeeded, so a failed copy leaves the old app intact). All best-effort: any failure returns null so
   a missing connection never breaks the app. The GitHub API JSON goes through the
   source-gen `GmapPlannerJsonContext` (trimming rule #1), never reflection. The check is
   **manual only** (Settings → "Check for updates"); there is no startup poll.
