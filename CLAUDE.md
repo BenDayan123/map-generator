@@ -67,7 +67,8 @@ dotnet test
 dotnet run --project src/GmapPlanner.App
 ```
 
-Publish (small, self-contained, single file):
+Publish (small, self-contained; win-x64 is a single file, osx-arm64 is a folder — see the
+Playwright driver section below for why):
 
 ```bash
 dotnet publish src/GmapPlanner.App -c Release -r win-x64
@@ -79,9 +80,11 @@ terminal: `dotnet workload install wasm-tools-net8`); without it, a solution-wid
 `dotnet build` fails on `GmapPlanner.App.Browser` — build `src/GmapPlanner.App` directly
 instead. Run the site locally with `dotnet run --project src/GmapPlanner.App.Browser`.
 
-`GmapPlanner.App.csproj` sets `PublishSingleFile`, `SelfContained`, `PublishTrimmed`
-(`TrimMode=partial`). `InvariantGlobalization` is on for size; revisit if Hebrew text
-sorting/formatting (not rendering — that's unaffected) ever needs real culture data.
+`GmapPlanner.App.csproj` sets `SelfContained` and `PublishTrimmed` (`TrimMode=partial`) for
+both platforms; `PublishSingleFile` is win-x64 only — osx-arm64 publishes as a folder (the
+`.dmg` script needs the loose files to lay out the `.app` bundle). `InvariantGlobalization`
+is on for size; revisit if Hebrew text sorting/formatting (not rendering — that's unaffected)
+ever needs real culture data.
 
 ## Trimming rules — read before adding reflection-based code
 
@@ -244,7 +247,8 @@ and generation is `PipelineService.GenerateAsync` in memory.
 
 The browser is deliberately **not** bundled (that's what keeps the download reasonable);
 Playwright fetches Chromium on first publish. Playwright's own node driver *is* bundled
-and costs ~100MB — the app is ~230MB (win-x64) / ~290MB (osx-arm64) because of it.
+and costs ~100MB — the app is ~230MB (win-x64) / roughly ~290MB (osx-arm64, a folder publish
+that hasn't been re-measured) because of it.
 Swapping to PuppeteerSharp would bring it back to ~48MB at the cost of reimplementing
 the role/text selector helpers.
 
@@ -256,7 +260,7 @@ itself needs a real Chrome/Edge** — `LoginAsync` detects the bundled-Chromium 
 more macOS guards live in `MyMapsSession`: the synchronous `EnsureDriverInstalled()` (which
 may download ~150MB on first publish) runs inside `Task.Run` so it never freezes the UI
 thread, and `StripQuarantineMac()` clears `com.apple.quarantine` off the bundled `.playwright`
-node driver at startup (the unsigned `.dmg` quarantines it, which would otherwise block the
+node driver (the ad-hoc `.dmg` may be quarantined on download, which would otherwise block the
 `node` binary Playwright execs).
 
 ### Playwright's node driver is per-platform — three traps, all handled in the csprojs
@@ -277,10 +281,13 @@ this wrong three ways before the fixes in `GmapPlanner.Core.Publish.csproj` / `G
    `win` from `$(RuntimeIdentifier)` so its build output holds the one correct driver.
    Left empty (a dev `dotnet run`) it falls through to the host driver, which is right for
    a local run.
-3. **Single-file strips the driver.** `PublishSingleFile` drops the loose
+3. **Single-file strips the driver — win-x64 only.** `PublishSingleFile` drops the loose
    `node/<platform>` folder from the publish dir (the bundler swallows the native node
    exe), but Playwright needs it on disk. The `RestorePlaywrightNodeDriver` target copies
    it back next to the exe after publish, and re-adds the `+x` bit on a non-Windows host.
+   osx-arm64 isn't single-file, so its folder publish keeps `.playwright` as-is; the .dmg
+   script (`make-macos-dmg.sh`) moves it into `Contents/Resources` and leaves a symlink at
+   `Contents/MacOS/.playwright` so Playwright still finds it at the path it expects.
 
 Net: `win-x64` publish ships only `win32_x64`, `osx-arm64` ships only `darwin-arm64`, no
 cross-contamination. Verify a driver change by listing `publish/.playwright/node/` — it
@@ -298,16 +305,26 @@ one are the same platform.
   (`IsNewer`), pick this OS's asset (`.exe` on Windows, arm64 `.dmg` on macOS), download to
   temp, and apply — Windows runs the Inno installer `/SILENT` then `Environment.Exit`s so
   the files free up (installer relaunches via `installer.iss` `[Run] Check:WizardSilent`);
-  macOS `open`s the `.dmg` for a drag-install. All best-effort: any failure returns null so
+  macOS runs a detached script that swaps the `.app` bundle from the `.dmg` and relaunches
+  (`MacSwapScript`; copies to `<bundle>.new` first and replaces the live bundle only if that
+  succeeded, so a failed copy leaves the old app intact). All best-effort: any failure returns null so
   a missing connection never breaks the app. The GitHub API JSON goes through the
   source-gen `GmapPlannerJsonContext` (trimming rule #1), never reflection. The check is
   **manual only** (Settings → "Check for updates"); there is no startup poll.
 - **Packaging** is per-platform, built by tag push (`v*`) in `.github/workflows/release.yml`:
   `windows-latest` publishes `win-x64` and compiles `build/installer.iss` with Inno Setup
-  (per-user, no UAC) → `MyMapsGenerator-Setup-win-x64.exe`; `macos-14` (arm64) publishes
-  `osx-arm64` and `build/make-macos-dmg.sh` wraps it into a `.app` (+ `.playwright` driver,
-  `chmod +x`) and an `hdiutil` `.dmg`. A `release` job attaches both to the GitHub Release.
-  The macOS app is **unsigned** — first launch needs a right-click → Open past Gatekeeper.
+  (per-user, no UAC) → `MyMapsGenerator-Setup-win-x64.exe`;
+  `macos-14` (arm64) publishes `osx-arm64` as a **folder** (not single-file: every dylib must be
+  on disk to be signed) and `build/make-macos-dmg.sh` wraps it into a `.app`, **ad-hoc signs**
+  every file inside-out (`codesign --sign -`; free, no Apple Developer account by the owner's
+  choice) and builds the `.dmg`; CI then launches the app out of the `.dmg` as a smoke test.
+  codesign scans `Contents/MacOS` for nested "bundle-shaped" code, so the script moves the
+  `.playwright` driver to `Contents/Resources` (not scanned) and leaves a symlink at its
+  expected `Contents/MacOS/.playwright` path. An ad-hoc app runs on Apple Silicon, but a
+  browser download needs Privacy & Security → Open Anyway once — or the
+  `build/install-macos.sh` curl one-liner, which isn't quarantined. User steps:
+  `docs/macos-install.md`. An **unsealed** bundle (the old single-file layout) is what made
+  real Macs say "damaged" with no way past it — never ship one.
 - **Cutting a release:** merge to `main`, then `git tag v1.2.3 && git push origin v1.2.3`.
 
 ## Browser host (cloud hosting, phase 2)

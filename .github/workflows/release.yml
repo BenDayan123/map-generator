@@ -66,6 +66,26 @@ jobs:
           chmod +x build/make-macos-dmg.sh
           ./build/make-macos-dmg.sh publish/osx-arm64 ${{ steps.ver.outputs.version }}
 
+      # Launch the app out of the built .dmg exactly as a user would get it; a signing or
+      # native-load problem kills it within seconds.
+      - name: Smoke test
+        run: |
+          MNT="$(mktemp -d)"
+          hdiutil attach build/MyMapsGenerator-osx-arm64.dmg -nobrowse -mountpoint "$MNT"
+          APP="$MNT/My Maps Generator.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          "$APP/Contents/MacOS/.playwright/node/darwin-arm64/node" --version
+          "$APP/Contents/MacOS/GmapPlanner.App" &
+          PID=$!
+          sleep 20
+          if ! kill -0 "$PID" 2>/dev/null; then
+            echo "App exited within 20s:"
+            cat "$HOME/Library/Application Support/GmapPlanner/last_error.log" 2>/dev/null || true
+            exit 1
+          fi
+          kill "$PID"
+          hdiutil detach "$MNT"
+
       - uses: actions/upload-artifact@v4
         with:
           name: macos-dmg

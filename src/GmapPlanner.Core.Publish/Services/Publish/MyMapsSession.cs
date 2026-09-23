@@ -170,9 +170,9 @@ public sealed class MyMapsSession : IAsyncDisposable
 
     /// <summary>
     /// On macOS, clears the com.apple.quarantine attribute from the bundled Playwright driver.
-    /// The .dmg is unsigned, so everything inside it is quarantined on download; the user's
-    /// right-click → Open only clears the main app, leaving the nested unsigned `node` binary
-    /// Playwright execs blocked ("developer cannot be verified"). Best-effort and no-op elsewhere.
+    /// The node binary Playwright execs is ad-hoc signed, but the user's approval step (System
+    /// Settings → "Open Anyway") only clears quarantine on the app bundle itself — nested files
+    /// keep their flag, so the `node` binary can still be blocked. Best-effort and no-op elsewhere.
     /// </summary>
     private static void StripQuarantineMac()
     {
@@ -181,9 +181,12 @@ public sealed class MyMapsSession : IAsyncDisposable
         {
             var driverDir = Path.Combine(AppContext.BaseDirectory, ".playwright");
             if (!Directory.Exists(driverDir)) return;
+            // driverDir is a symlink into Contents/Resources (see make-macos-dmg.sh); resolve it
+            // first since `xattr -dr` on a top-level symlink may not walk into its target.
+            var target = new DirectoryInfo(driverDir).ResolveLinkTarget(true)?.FullName ?? driverDir;
             using var proc = Process.Start(new ProcessStartInfo("xattr")
             {
-                ArgumentList = { "-dr", "com.apple.quarantine", driverDir },
+                ArgumentList = { "-dr", "com.apple.quarantine", target },
                 UseShellExecute = false,
                 CreateNoWindow = true,
             });

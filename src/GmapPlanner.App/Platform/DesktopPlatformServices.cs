@@ -97,8 +97,8 @@ public sealed class DesktopPlatformServices : IPlatformServices
     public async Task InstallUpdateAsync(UpdateInfo update, Action<double> progress)
     {
         var path = await _updater.DownloadAssetAsync(update.AssetUrl, update.AssetName, progress: progress);
-        // On Windows this quits the app so the installer can replace the files, then
-        // relaunches the new version; on macOS it opens the .dmg for a drag-install.
+        // Both OSes quit the app here and relaunch the new version when the install is done
+        // (Windows: Inno /SILENT; macOS: the .app bundle is swapped from the .dmg).
         UpdateService.ApplyUpdate(path);
     }
 
