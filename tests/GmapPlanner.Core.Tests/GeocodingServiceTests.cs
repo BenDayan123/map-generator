@@ -64,6 +64,19 @@ public class GeocodingServiceTests
         Assert.Null(GeocodingService.PickBest([], "Nike Shibuya"));
 
     [Fact]
+    public void PickBest_PartialOverlapNeverBeatsGooglesFirst()
+    {
+        // Accented English name from Google vs Gemini's plain spelling + descriptor word.
+        var places = new[]
+        {
+            Place("Tōdai-ji", 34.6890, 135.8398),
+            Place("Todai-ji Temple Museum", 34.6870, 135.8380),
+        };
+
+        Assert.Equal("Tōdai-ji", GeocodingService.PickBest(places, "Todai-ji Temple, Nara")?.DisplayName?.Text);
+    }
+
+    [Fact]
     public void NameTokens_LowercasesAndSplitsOnPunctuation() =>
         Assert.Equal(new HashSet<string> { "senso", "ji", "temple" }, GeocodingService.NameTokens("Senso-ji Temple!"));
 
@@ -87,6 +100,8 @@ public class GeocodingServiceTests
         Assert.Equal(5, body["pageSize"]!.GetValue<int>());
         Assert.Equal("en", body["languageCode"]!.GetValue<string>());
         Assert.Equal(35.66, body["locationBias"]!["circle"]!["center"]!["latitude"]!.GetValue<double>());
+        Assert.Equal(139.70, body["locationBias"]!["circle"]!["center"]!["longitude"]!.GetValue<double>());
+        Assert.Equal(50_000, body["locationBias"]!["circle"]!["radius"]!.GetValue<double>());
     }
 
     [Fact]

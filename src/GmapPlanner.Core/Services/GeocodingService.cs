@@ -144,30 +144,22 @@ public class GeocodingService(HttpClient http, string apiKey)
     }
 
     /// <summary>
-    /// Picks the candidate whose display name best matches the extracted name. Google ranks
-    /// by relevance + prominence, so a popular place whose name merely *contains* the query
-    /// ("Nike Shibuya Scramble Square") can outrank the exact match ("Nike Shibuya").
-    /// Score = token Jaccard overlap against the name before its ", City" suffix. Only a
-    /// strictly higher score beats an earlier candidate, so ties keep Google's order.
+    /// Picks Google's first located candidate, unless a later one's name tokens exactly match
+    /// the extracted name's. Google ranks by relevance + prominence, so a popular place whose
+    /// name merely *contains* the query ("Nike Shibuya Scramble Square") can outrank the exact
+    /// match ("Nike Shibuya"). We override Google's order only on an exact token-set match
+    /// against the name before its ", City" suffix — a fuzzier (partial-overlap) rule let a
+    /// near-miss beat a correct first hit: an accent difference (Tōdai-ji vs "todai") lost to
+    /// a lower candidate with extra descriptor words ("Todai-ji Temple Museum").
     /// </summary>
     internal static PlaceDto? PickBest(IReadOnlyList<PlaceDto> places, string name)
     {
+        var located = places
+            .Where(p => p.Location?.Latitude is not null && p.Location.Longitude is not null)
+            .ToList();
         var wanted = NameTokens(name.Split(',')[0]);
-        PlaceDto? best = null;
-        var bestScore = -1.0;
-        foreach (var place in places)
-        {
-            if (place.Location?.Latitude is null || place.Location.Longitude is null) continue;
-            var got = NameTokens(place.DisplayName?.Text ?? "");
-            var union = wanted.Union(got).Count();
-            var score = union == 0 ? 0 : (double)wanted.Intersect(got).Count() / union;
-            if (score > bestScore)
-            {
-                best = place;
-                bestScore = score;
-            }
-        }
-        return best;
+        return located.FirstOrDefault(p => NameTokens(p.DisplayName?.Text ?? "").SetEquals(wanted))
+            ?? located.FirstOrDefault();
     }
 
     /// <summary>

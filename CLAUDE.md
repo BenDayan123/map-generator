@@ -139,9 +139,10 @@ take the process down instead of showing up in the error banner.
 - **`GeocodingService`** — now calls **Places API (New)** Text Search (`POST places:searchText`,
   `X-Goog-FieldMask: places.displayName,places.id,places.location`) instead of the Geocoding
   API, which is an address geocoder and mis-pinned named POIs (wrong city / unrelated shop).
-  It asks for 5 English candidates biased (50 km circle) to Gemini's own coordinates and picks
-  by name match (`PickBest`: token overlap with the name before ", City"; ties keep Google's
-  order) — Google's first hit is often a more *popular* place whose name merely contains the
+  It asks for 5 English candidates biased (50 km circle) to Gemini's own coordinates and
+  overrides Google's first hit only when a candidate's name tokens exactly match the name
+  before ", City" (`PickBest`; anything looser let near-misses beat a correct first hit) —
+  Google's first hit is often a more *popular* place whose name merely contains the
   query ("Nike Shibuya Scramble Square" for "Nike Shibuya").
   Keeps `geocode.py`'s fatal-vs-recoverable split (fatal = `PERMISSION_DENIED`/`RESOURCE_EXHAUSTED`/
   `UNAUTHENTICATED` or a bad key) aborts the whole itinerary (keeping Gemini's coordinates
