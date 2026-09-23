@@ -114,6 +114,11 @@ it already caused one crash (picking an output folder killed the whole app).
    (passing `JsonObject`/`JsonNode` values — harmless because `Add<T>` short-circuits for
    JsonNode values, and `GmapPlanner.App.csproj` re-enables reflection STJ for Playwright
    anyway). Don't chase these; do chase anything else.
+5. **ILLink strips parameter names — keep them.** Reflection STJ binds constructor
+   parameters *by name*, and Playwright deserializes e.g. `KeyValuePair<string,string>(key,
+   value)` that way; with names stripped, "Sign in to Google" failed in the published exe only
+   ("…contains parameters with null names"). `GmapPlanner.App.csproj` passes
+   `--keep-metadata parametername` via `_ExtraTrimmerArgs` (~1 MB). Don't remove it.
 
 ## UI
 
