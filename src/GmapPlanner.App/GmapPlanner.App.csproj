@@ -10,11 +10,14 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
     <RuntimeIdentifiers>win-x64;osx-arm64</RuntimeIdentifiers>
-    <PublishSingleFile>true</PublishSingleFile>
+    <!-- Single-file on Windows only. On macOS every native dylib must sit on disk inside
+         the .app so codesign can sign it (a single-file bundle extracts its dylibs at runtime,
+         outside the signed bundle) — see build/make-macos-dmg.sh. -->
+    <PublishSingleFile Condition="'$(RuntimeIdentifier)' != 'osx-arm64'">true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>partial</TrimMode>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeNativeLibrariesForSelfExtract Condition="'$(RuntimeIdentifier)' != 'osx-arm64'">true</IncludeNativeLibrariesForSelfExtract>
     <InvariantGlobalization>true</InvariantGlobalization>
     <!-- PublishTrimmed turns reflection-based System.Text.Json OFF for the whole app.
          Our own code goes through the source-generated GmapPlannerJsonContext, but
