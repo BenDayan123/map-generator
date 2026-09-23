@@ -14,8 +14,9 @@ namespace GmapPlanner.Core.Services;
 /// Apply strategy (deliberately simple, matching the original):
 /// - Windows: run the Inno Setup installer with /SILENT; it closes the app, updates the
 ///   files, and (via installer.iss [Run] Check:WizardSilent) relaunches it.
-/// - macOS: open the downloaded .dmg so the user drags the new app over the old one (the
-///   app is unsigned, so a silent swap isn't worth the Gatekeeper fight).
+/// - macOS: a detached script waits for the app to quit, mounts the downloaded .dmg,
+///   replaces the running .app bundle with the new one, and relaunches it — the same
+///   hands-off update as Windows. Outside an .app (a dev run) it just opens the .dmg.
 ///
 /// Everything is best-effort: any network/parse failure returns null so a missing
 /// connection can never break the app.
@@ -108,9 +109,9 @@ public class UpdateService(HttpClient http)
     public static bool IsSelfUpdateSupported => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
 
     /// <summary>
-    /// Launches the downloaded installer to update in place. On Windows this quits the app
-    /// (Environment.Exit) so Inno can overwrite the files it holds open; the installer then
-    /// relaunches the new version. On macOS it opens the .dmg for a drag-install.
+    /// Launches the downloaded installer to update in place, then quits the app so its files
+    /// can be replaced. Windows: the Inno installer runs /SILENT and relaunches the new
+    /// version. macOS: <see cref="MacSwapScript"/> swaps the .app bundle and relaunches it.
     /// </summary>
     public static void ApplyUpdate(string installerPath)
     {
@@ -125,13 +126,62 @@ public class UpdateService(HttpClient http)
         }
         else if (OperatingSystem.IsMacOS())
         {
-            Process.Start(new ProcessStartInfo("open", $"\"{installerPath}\"") { UseShellExecute = false });
+            if (MacBundlePath(AppContext.BaseDirectory) is not { } bundle)
+            {
+                // Not running from an .app (dev run): nothing to swap, hand over the .dmg.
+                Process.Start(new ProcessStartInfo("open", $"\"{installerPath}\"") { UseShellExecute = false });
+                return;
+            }
+            var script = Path.Combine(Path.GetTempPath(), "gmapplanner-update.sh");
+            File.WriteAllText(script, MacSwapScript(installerPath, bundle, Environment.ProcessId));
+            // nohup + a new session so the script outlives this process.
+            Process.Start(new ProcessStartInfo("/bin/bash")
+            {
+                ArgumentList = { "-c", $"nohup /bin/bash {Quote(script)} >/dev/null 2>&1 &" },
+                UseShellExecute = false,
+            });
+            Environment.Exit(0);
         }
         else
         {
             throw new PlatformNotSupportedException("Self-update is only supported on Windows and macOS.");
         }
     }
+
+    /// <summary>The enclosing <c>X.app</c> of an app running from <c>X.app/Contents/MacOS/</c>, else null.</summary>
+    public static string? MacBundlePath(string baseDirectory)
+    {
+        var macOs = baseDirectory.TrimEnd('/');
+        var contents = Path.GetDirectoryName(macOs);
+        var bundle = contents is null ? null : Path.GetDirectoryName(contents);
+        return Path.GetFileName(macOs) == "MacOS" && Path.GetFileName(contents) == "Contents"
+               && bundle is not null && bundle.EndsWith(".app", StringComparison.Ordinal)
+            ? bundle.Replace('\\', '/')
+            : null;
+    }
+
+    /// <summary>
+    /// Bash that waits for <paramref name="pid"/> to exit, mounts <paramref name="dmgPath"/>,
+    /// replaces <paramref name="bundlePath"/> with the .app inside it, and relaunches it.
+    /// The .dmg came from our own HttpClient download, so it carries no quarantine flag.
+    /// </summary>
+    public static string MacSwapScript(string dmgPath, string bundlePath, int pid) => $$"""
+        #!/bin/bash
+        while kill -0 {{pid}} 2>/dev/null; do sleep 0.5; done
+        MNT="$(mktemp -d)"
+        hdiutil attach {{Quote(dmgPath)}} -nobrowse -quiet -mountpoint "$MNT" || { open {{Quote(dmgPath)}}; exit 1; }
+        NEW="$(find "$MNT" -maxdepth 1 -name '*.app' | head -n 1)"
+        if [ -n "$NEW" ]; then
+          rm -rf {{Quote(bundlePath)}}
+          ditto "$NEW" {{Quote(bundlePath)}}
+        fi
+        hdiutil detach "$MNT" -quiet
+        open {{Quote(bundlePath)}}
+        """;
+
+    // $$""" so the bash braces stay literal; {{x}} interpolates.
+    /// <summary>Single-quote for bash: 'it'\''s' survives spaces, quotes and $.</summary>
+    private static string Quote(string s) => "'" + s.Replace("'", "'\\''") + "'";
 
     /// <summary>True if <paramref name="latest"/> is a strictly higher version than <paramref name="current"/>.</summary>
     public static bool IsNewer(string latest, string current)
