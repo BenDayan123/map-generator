@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:GmapPlanner.App.ViewModels"
+             xmlns:l="using:GmapPlanner.App.Localization"
              xmlns:sys="using:System"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -10,7 +11,8 @@
              x:CompileBindings="True"
              Background="{StaticResource BgBrush}"
              FontFamily="Inter, Segoe UI Variable Text, Segoe UI"
-             FontSize="14">
+             FontSize="14"
+             FlowDirection="{Binding AppFlowDirection}">
     <!-- The whole app UI, host-agnostic: the desktop MainWindow wraps it today, the
          browser host (phase 2) uses it as its single view. -->
 
@@ -30,154 +32,191 @@
         <!-- Padding is 0 so the scrollbar sits flush against the right edge; the inner
              content carries its own margin, with extra room on the right as the scrollbar
              gutter so the bar never overlaps the controls. -->
-        <Border Grid.Column="0" Background="{StaticResource SidebarBrush}"
-                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,1,0">
+        <Border Grid.Column="0" Background="{StaticResource SidebarBrush}">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Spacing="6" Margin="16,18,14,18">
+                    <!-- Language switch: shows the other language; the window flips RTL/LTR. -->
+                    <Button Classes="langSwitch" HorizontalAlignment="Left" Margin="0,0,0,10"
+                            Command="{Binding ToggleLanguageCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Path Classes="icon" Width="16" Height="16" VerticalAlignment="Center" Data="{StaticResource IconGlobe}" />
+                            <TextBlock Text="{l:T LangSwitch}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+
                     <Button Classes="nav" Command="{Binding ShowMakeMapCommand}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Path Classes="icon" Width="17" Height="17" VerticalAlignment="Center" Data="{StaticResource IconPin}" />
-                            <TextBlock Text="Make Map" VerticalAlignment="Center" />
+                            <TextBlock Text="{l:T NavMakeMap}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav" Command="{Binding ShowAnalyticsCommand}" IsVisible="{Binding Features.Analytics}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Path Classes="icon" Width="17" Height="17" VerticalAlignment="Center" Data="{StaticResource IconChart}" />
-                            <TextBlock Text="Analytics" VerticalAlignment="Center" />
+                            <TextBlock Text="{l:T NavAnalytics}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Classes="nav" Command="{Binding ShowSettingsCommand}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Path Classes="icon" Width="17" Height="17" VerticalAlignment="Center" Data="{StaticResource IconSettings}" />
-                            <TextBlock Text="Settings" VerticalAlignment="Center" />
+                            <TextBlock Text="{l:T NavSettings}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
 
                     <Separator Margin="0,14" Background="{StaticResource HairlineBrush}" />
 
-                    <!-- Places API usage ring (hidden until a service account is configured).
-                         Canvas so the track ellipse and progress arc share one absolute
-                         140×140 coordinate space (a laid-out Path would auto-center and drift). -->
-                    <StackPanel IsVisible="{Binding HasUsage}" Spacing="4">
-                        <TextBlock Classes="sideHeader" Text="API USAGE" />
-                        <Grid Width="140" Height="140" HorizontalAlignment="Center">
-                            <Canvas Width="140" Height="140">
-                                <!-- Width/Top sized so Avalonia's half-stroke deflation lands the
-                                     track's centerline on radius 54 (Center 70) — the same circle
-                                     the arc path uses — so the progress arc aligns with the track. -->
-                                <Ellipse Canvas.Left="10" Canvas.Top="10" Width="120" Height="120"
-                                         Stroke="{StaticResource HairlineBrush}" StrokeThickness="12" />
-                                <Path Stretch="None" Stroke="{Binding UsageColor}" StrokeThickness="12"
-                                      StrokeLineCap="Round" Data="{Binding UsageRingGeometry}" />
-                            </Canvas>
-                            <TextBlock Text="{Binding UsagePercentText}" FontSize="24" FontWeight="SemiBold"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Grid>
-                        <TextBlock Classes="caption" Text="{Binding UsageSubText}"
-                                   TextAlignment="Center" HorizontalAlignment="Center" />
-                        <Separator Margin="0,14" Background="{StaticResource HairlineBrush}" />
-                    </StackPanel>
-
-                    <TextBlock Classes="sideHeader" Text="OPTIONS" />
-
-                    <TextBlock Text="Days per KML file" FontSize="13" />
-                    <Grid ColumnDefinitions="*,Auto">
-                        <Slider Grid.Column="0" Minimum="1" Maximum="{Binding MaxLayersPerFile}"
-                                TickFrequency="1" IsSnapToTickEnabled="True"
-                                Value="{Binding LayersPerFile}" />
-                        <TextBlock Grid.Column="1" Text="{Binding LayersPerFile}" VerticalAlignment="Center"
-                                   Margin="8,0,0,0" FontWeight="SemiBold" />
-                    </Grid>
-                    <TextBlock Classes="caption"
-                               Text="Google My Maps allows at most 10 layers (days) per map." />
-
-                    <ToggleSwitch Margin="0,10,0,0" IsChecked="{Binding SkipGeocoding}"
-                                  OnContent="Skip geocoding" OffContent="Skip geocoding" />
-                    <TextBlock Classes="caption"
-                               Text="Use Gemini's approximate coordinates instead of snapping each place to its exact Google Maps point. Faster, less accurate pins." />
-
-                    <StackPanel Spacing="6" IsVisible="{Binding Features.Publish}">
-                    <Separator Margin="0,14" Background="{StaticResource HairlineBrush}" />
-
-                    <TextBlock Classes="sideHeader" Text="PUBLISH TO MY MAPS" />
-                    <TextBlock Classes="caption"
-                               Text="Creates a live Google My Maps map per file and shares it." />
-
-                    <ToggleSwitch Margin="0,8,0,0" IsChecked="{Binding PublishEnabled}"
-                                  OnContent="Create &amp; share maps" OffContent="Create &amp; share maps" />
-
-                    <StackPanel Spacing="8" IsVisible="{Binding PublishEnabled}">
-                        <!-- Desktop: sign in to Google here. -->
-                        <StackPanel Spacing="8" IsVisible="{Binding !Features.RequiresSession}">
-                            <Button HorizontalAlignment="Stretch"
-                                    Command="{Binding LogInToGoogleCommand}" IsEnabled="{Binding !IsLoggingIn}">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Path Classes="icon" Width="15" Height="15" VerticalAlignment="Center" Data="{StaticResource IconLock}" />
-                                    <TextBlock Text="Log in to Google" VerticalAlignment="Center" />
+                    <!-- API usage: the Places API ring (percent inside) with its numbers beside it.
+                         The ring is drawn in a fixed 140×140 Canvas (track ellipse and arc share one
+                         absolute coordinate space) and a Viewbox scales it down to fit the row.
+                         Hidden until a service account is configured and Cloud Monitoring answers. -->
+                    <Border Classes="sideSection" Margin="0,0,0,8" IsVisible="{Binding HasUsage}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="sideHeader" Text="{l:T ApiUsage}" Margin="0" />
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Viewbox Grid.Column="0" Width="64" Height="64" VerticalAlignment="Center">
+                                    <Grid Width="140" Height="140">
+                                        <Canvas Width="140" Height="140">
+                                            <!-- Width/Top sized so Avalonia's half-stroke deflation lands the
+                                                 track's centerline on radius 54 (Center 70) — the same circle
+                                                 the arc path uses — so the progress arc aligns with the track. -->
+                                            <Ellipse Canvas.Left="10" Canvas.Top="10" Width="120" Height="120"
+                                                     Stroke="{StaticResource HairlineBrush}" StrokeThickness="14" />
+                                            <Path Stretch="None" Stroke="{Binding UsageColor}" StrokeThickness="14"
+                                                  StrokeLineCap="Round" Data="{Binding UsageRingGeometry}" />
+                                        </Canvas>
+                                        <TextBlock Text="{Binding UsagePercentText}" FontSize="36" FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Viewbox>
+                                <StackPanel Grid.Column="1" Spacing="2" Margin="12,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{l:T PlacesApi}" FontWeight="SemiBold" FontSize="13.5" />
+                                    <TextBlock Classes="caption" Text="{Binding UsageSubText}" />
                                 </StackPanel>
-                            </Button>
-                            <Button Content="Check status" HorizontalAlignment="Stretch"
-                                    Command="{Binding CheckLoginCommand}" IsEnabled="{Binding !IsLoggingIn}" />
-                            <TextBlock Classes="caption" Text="{Binding LoginStatus}"
-                                       IsVisible="{Binding LoginStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </Grid>
                         </StackPanel>
+                    </Border>
 
-                        <!-- Web: publishing runs in the cloud with a session.json loaded on the Settings page. -->
-                        <StackPanel Spacing="4" IsVisible="{Binding Features.RequiresSession}">
-                            <TextBlock>
-                                <Run Text="{Binding HasPublishSession, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="Cloud session loaded" />
-                            </TextBlock>
-                            <TextBlock Classes="caption" IsVisible="{Binding !HasPublishSession}"
-                                       Text="Load your session.json on the Settings page (from the login helper) to enable publishing." />
+                    <!-- == Map options == -->
+                    <Border Classes="sideSection">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="sideHeader" Text="{l:T MapOptions}" Margin="0" />
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Classes="fieldLabel" Text="{l:T DaysPerTrip}" VerticalAlignment="Center"
+                                           ToolTip.Tip="{l:T DaysPerTripTip}" />
+                                <Border Grid.Column="1" Classes="chip" Margin="0">
+                                    <TextBlock Text="{Binding LayersPerFile}" FontWeight="SemiBold" />
+                                </Border>
+                            </Grid>
+                            <Slider Minimum="1" Maximum="{Binding MaxLayersPerFile}"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Value="{Binding LayersPerFile}" />
+
+                            <Separator Margin="0,4" Background="{StaticResource HairlineBrush}" />
+
+                            <ToggleSwitch IsChecked="{Binding SkipGeocoding}"
+                                          OnContent="{l:T QuickMode}" OffContent="{l:T QuickMode}"
+                                          ToolTip.Tip="{l:T QuickModeTip}" />
+                            <TextBlock Classes="caption"
+                                       Text="{l:T QuickModeHelp}" />
                         </StackPanel>
+                    </Border>
 
-                        <TextBlock Text="Share with (emails)" FontSize="13" Margin="0,4,0,0" />
-                        <Border Classes="tokenBox">
-                            <WrapPanel>
-                                <ItemsControl ItemsSource="{Binding ShareEmailsList}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="sys:String">
-                                            <Border Classes="chip">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <TextBlock Text="{Binding}" VerticalAlignment="Center" />
-                                                    <Button Classes="chipClose" Content="✕"
-                                                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).RemoveEmailCommand}"
-                                                            CommandParameter="{Binding}" />
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <TextBox Name="EmailEntry" Classes="tokenEntry"
-                                         Watermark="add more people …" />
-                            </WrapPanel>
-                        </Border>
-                        <TextBlock Classes="caption"
-                                   Text="Type an email and press Enter. Leave empty to create the maps without sharing." />
+                    <!-- == Share on Google My Maps == -->
+                    <Border Classes="sideSection" Margin="0,8,0,0" IsVisible="{Binding Features.Publish}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="sideHeader" Text="{l:T ShareOnMaps}" Margin="0" />
+                            <ToggleSwitch IsChecked="{Binding PublishEnabled}"
+                                          OnContent="{l:T CreateOnline}" OffContent="{l:T CreateOnline}" />
+                            <TextBlock Classes="caption"
+                                       Text="{l:T CreateOnlineHelp}" />
 
-                        <TextBlock Text="Their access" FontSize="13" Margin="0,4,0,0" />
-                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ShareRoles}"
-                                  SelectedIndex="{Binding ShareRoleIndex}" />
+                            <StackPanel Spacing="8" IsVisible="{Binding PublishEnabled}">
+                                <Separator Margin="0,4" Background="{StaticResource HairlineBrush}" />
 
-                        <ToggleSwitch IsChecked="{Binding NotifyShare}"
-                                      OnContent="Email people when shared" OffContent="Email people when shared" />
-                        <ToggleSwitch IsChecked="{Binding ShowBrowser}" IsVisible="{Binding !Features.RequiresSession}"
-                                      OnContent="Show the browser" OffContent="Show the browser" />
-                        <TextBlock Classes="caption" IsVisible="{Binding !Features.RequiresSession}"
-                                   Text="Headless by default. Turn on to watch or debug the automation." />
-                    </StackPanel>
-                    </StackPanel>
+                                <!-- Desktop: sign in to Google here. -->
+                                <StackPanel Spacing="8" IsVisible="{Binding !Features.RequiresSession}">
+                                    <!-- Google account -->
+                                    <TextBlock Classes="fieldLabel" Text="{l:T YourGoogleAccount}" />
+                                    <TextBlock Classes="caption" Text="{l:T SignInOnce}" />
+                                    <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                            Command="{Binding LogInToGoogleCommand}" IsEnabled="{Binding !IsLoggingIn}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Path Classes="icon" Width="15" Height="15" VerticalAlignment="Center" Data="{StaticResource IconLock}" />
+                                            <TextBlock Text="{l:T SignInGoogle}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Content="{l:T AmISignedIn}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                            Command="{Binding CheckLoginCommand}" IsEnabled="{Binding !IsLoggingIn}" />
+                                    <TextBlock Classes="caption" Text="{Binding LoginStatus}"
+                                               IsVisible="{Binding LoginStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                                </StackPanel>
+                                <!-- Web: publishing runs in the cloud with a session.json loaded on the Settings page. -->
+                                <StackPanel Spacing="4" IsVisible="{Binding Features.RequiresSession}">
+                                    <TextBlock>
+                                        <Run Text="{Binding HasPublishSession, Converter={x:Static vm:BoolTick.Instance}}" />
+                                        <Run Text="{l:T CloudSessionLoaded}" />
+                                    </TextBlock>
+                                    <TextBlock Classes="caption" IsVisible="{Binding !HasPublishSession}"
+                                               Text="{l:T LoadSessionHint}" />
+                                </StackPanel>
+
+                                <Separator Margin="0,4" Background="{StaticResource HairlineBrush}" />
+
+                                <!-- Share with (emails) — kept exactly as before -->
+                                <TextBlock Text="{l:T ShareWithEmails}" FontSize="13" Margin="0,4,0,0" />
+                                <Border Classes="tokenBox">
+                                    <WrapPanel>
+                                        <ItemsControl ItemsSource="{Binding ShareEmailsList}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="sys:String">
+                                                    <Border Classes="chip">
+                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                                                            <Button Classes="chipClose" Content="✕"
+                                                                    Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).RemoveEmailCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBox Name="EmailEntry" Classes="tokenEntry"
+                                                 Watermark="{l:T AddMorePeople}" />
+                                    </WrapPanel>
+                                </Border>
+                                <TextBlock Classes="caption"
+                                           Text="{l:T ShareEmailsHelp}" />
+
+                                <TextBlock Classes="fieldLabel" Text="{l:T WhatCanTheyDo}" Margin="0,4,0,0" />
+                                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ShareRoles}"
+                                          SelectedIndex="{Binding ShareRoleIndex}"
+                                          ToolTip.Tip="{l:T RolesTip}" />
+                                <ToggleSwitch IsChecked="{Binding NotifyShare}"
+                                              OnContent="{l:T EmailThemLink}" OffContent="{l:T EmailThemLink}" />
+
+                                <StackPanel Spacing="8" IsVisible="{Binding !Features.RequiresSession}">
+                                    <Separator Margin="0,4" Background="{StaticResource HairlineBrush}" />
+
+                                    <ToggleSwitch IsChecked="{Binding ShowBrowser}"
+                                                  OnContent="{l:T WatchItHappen}" OffContent="{l:T WatchItHappen}" />
+                                    <TextBlock Classes="caption"
+                                               Text="{l:T WatchHelp}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
         </Border>
 
         <!-- Drag to resize the sidebar (clamped to 1/3 of the window in code-behind).
-             8px wide so it's easy to grab; a resize cursor signals it's draggable. -->
-        <GridSplitter Grid.Column="1" Width="8" Background="{StaticResource HairlineBrush}"
+             8px wide so it's easy to grab; painted in the sidebar color so there's no visible border line. -->
+        <GridSplitter Grid.Column="1" Width="8" Background="{StaticResource SidebarBrush}"
                       ResizeDirection="Columns" HorizontalAlignment="Stretch"
                       Cursor="SizeWestEast" />
 
@@ -186,82 +225,173 @@
             <Grid Margin="32,28">
 
                 <!-- ======================== MAKE MAP ======================== -->
-                <StackPanel Spacing="18" IsVisible="{Binding IsMakeMapPage}">
-                    <StackPanel Orientation="Horizontal" Spacing="11">
-                        <Path Classes="icon" Width="26" Height="26" VerticalAlignment="Center"
-                              StrokeThickness="1.6" Stroke="#3B82F6" Data="{StaticResource IconPin}" />
-                        <TextBlock Classes="h1" Text="My Maps Generator" VerticalAlignment="Center" />
+                <!-- Two numbered steps (add file → create map) with the progress living inside
+                     step 2, then a separate success screen that replaces the steps. -->
+                <StackPanel Spacing="20" MaxWidth="780" IsVisible="{Binding IsMakeMapPage}">
+                    <StackPanel Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="11">
+                            <Path Classes="icon" Width="26" Height="26" VerticalAlignment="Center"
+                                  StrokeThickness="1.6" Stroke="#3B82F6" Data="{StaticResource IconPin}" />
+                            <TextBlock Classes="h1" Text="{l:T Hero}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Classes="caption" FontSize="14"
+                                   Text="{l:T HeroSub}" />
                     </StackPanel>
-                    <TextBlock Classes="caption" FontSize="13.5"
-                               Text="Upload a travel itinerary (PDF or TXT) and get Google My Maps KML files — each day a colored layer with numbered pins." />
 
-                    <!-- Drop zone -->
-                    <Border Name="DropZone" Classes="card" MinHeight="150"
-                            BorderThickness="1.5" BorderBrush="#2E4370" Background="#101A2E">
-                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10">
-                            <Path Classes="icon" Width="38" Height="38" HorizontalAlignment="Center"
-                                  Stroke="{StaticResource TextSecondaryBrush}" Data="{StaticResource IconFile}" />
-                            <TextBlock Text="Drag &amp; drop your itinerary here"
-                                       HorizontalAlignment="Center" FontWeight="SemiBold" />
-                            <TextBlock Classes="caption" HorizontalAlignment="Center"
-                                       Text="{Binding UploadHint}" />
-                            <Button Name="BrowseInputButton" Content="Browse files"
-                                    HorizontalAlignment="Center" Margin="0,4,0,0" />
-                            <TextBlock Text="{Binding InputFileName}" HorizontalAlignment="Center"
-                                       FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}"
-                                       IsVisible="{Binding InputFileName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                        </StackPanel>
-                    </Border>
+                    <!-- == Steps (hidden once the map is ready) == -->
+                    <StackPanel Spacing="16" IsVisible="{Binding !HasResult}">
 
-                    <Button Classes="accent" Command="{Binding GenerateCommand}"
-                            HorizontalAlignment="Left" Padding="18,10">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Path Classes="icon" Width="16" Height="16" VerticalAlignment="Center" Stroke="#FFFFFF" Data="{StaticResource IconUpload}" />
-                            <TextBlock Text="Generate map files" VerticalAlignment="Center" Foreground="#FFFFFF" />
-                        </StackPanel>
-                    </Button>
+                        <!-- Step 1: add the file -->
+                        <Border Classes="card" Padding="20">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Grid.Column="0" Classes="stepBadge" Margin="0,0,14,0"
+                                        Classes.done="{Binding InputFileName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <Panel>
+                                        <TextBlock Text="1" IsVisible="{Binding InputFileName, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+                                        <TextBlock Text="✓" Foreground="{StaticResource SuccessBrush}"
+                                                   IsVisible="{Binding InputFileName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    </Panel>
+                                </Border>
+                                <StackPanel Grid.Column="1" Spacing="12">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Classes="stepTitle" Text="{l:T Step1Title}" />
+                                        <TextBlock Classes="caption" Text="{l:T Step1Sub}" />
+                                    </StackPanel>
 
-                    <!-- Progress -->
-                    <Border Classes="card" IsVisible="{Binding IsBusy}">
-                        <StackPanel Spacing="10">
-                            <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" />
-                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress}" />
-                        </StackPanel>
-                    </Border>
+                                    <!-- Drop zone: a dashed outline (Border can't dash, so a Rectangle draws it).
+                                         Empty = centered prompt + gradient button; file chosen = one compact
+                                         file row with a Replace button. The code-behind toggles .dragOver. -->
+                                    <Border Name="DropZone" Classes="dropZone" MinHeight="176">
+                                        <Panel>
+                                            <Rectangle Classes="dropOutline" />
 
-                    <!-- Error -->
-                    <Border Classes="card" BorderBrush="{StaticResource DangerBrush}" Background="#1FEF4444"
-                            IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                        <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}" />
-                    </Border>
+                                            <!-- Empty state -->
+                                            <StackPanel Spacing="10" Margin="24" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                        IsVisible="{Binding InputFileName, Converter={x:Static StringConverters.IsNullOrEmpty}}">
+                                                <Border Width="56" Height="56" CornerRadius="28" HorizontalAlignment="Center"
+                                                        Background="{StaticResource AccentSoftBrush}">
+                                                    <Path Classes="icon" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          Stroke="{StaticResource AccentHoverBrush}" StrokeThickness="2" Data="{StaticResource IconUpload}" />
+                                                </Border>
+                                                <TextBlock Text="{l:T DropHere}" HorizontalAlignment="Center"
+                                                           FontSize="16" FontWeight="SemiBold" />
+                                                <TextBlock Classes="caption" HorizontalAlignment="Center" TextWrapping="NoWrap"
+                                                           Text="{Binding UploadHint}" />
+                                                <Button Name="BrowseInputButton" Classes="gradient" HorizontalAlignment="Center"
+                                                        Margin="0,6,0,0" IsEnabled="{Binding !IsBusy}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                        <Path Classes="icon" Width="16" Height="16" VerticalAlignment="Center"
+                                                              Stroke="#FFFFFF" Data="{StaticResource IconFolder}" />
+                                                        <TextBlock Text="{l:T ChooseFile}" VerticalAlignment="Center" Foreground="#FFFFFF" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
 
-                    <!-- Results -->
-                    <StackPanel Spacing="16" IsVisible="{Binding HasResult}">
-                        <Border Classes="card" BorderBrush="{StaticResource SuccessBrush}" Background="#1F22C55E">
-                            <TextBlock TextWrapping="Wrap">
-                                <Run Text="Created" Foreground="{StaticResource SuccessBrush}" FontWeight="SemiBold" />
-                                <Run Text="{Binding ResultFiles.Count}" Foreground="{StaticResource SuccessBrush}" FontWeight="Bold" />
-                                <Run Text="KML file(s) for" Foreground="{StaticResource SuccessBrush}" />
-                                <Run Text="{Binding ResultTripName}" Foreground="{StaticResource SuccessBrush}" FontWeight="Bold" />
-                            </TextBlock>
+                                            <!-- File chosen: one file, one row -->
+                                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="20" VerticalAlignment="Center"
+                                                  IsVisible="{Binding InputFileName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                <Border Grid.Column="0" Width="48" Height="48" CornerRadius="12"
+                                                        Background="#2622C55E" Margin="0,0,14,0">
+                                                    <Path Classes="icon" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          Stroke="{StaticResource SuccessBrush}" StrokeThickness="2" Data="{StaticResource IconFile}" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding InputFileName}" FontSize="15" FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{l:T ReadyToGo}" Foreground="{StaticResource SuccessBrush}" FontSize="13" />
+                                                </StackPanel>
+                                                <Button Name="ReplaceInputButton" Grid.Column="2" VerticalAlignment="Center"
+                                                        Padding="14,8" Content="{l:T Replace}" IsEnabled="{Binding !IsBusy}" />
+                                            </Grid>
+                                        </Panel>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
                         </Border>
 
-                        <Grid ColumnDefinitions="*,*,*" Margin="0,0,0,4">
+                        <!-- Step 2: create the map (progress shows here while it runs) -->
+                        <Border Classes="card" Padding="20">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <Border Grid.Column="0" Classes="stepBadge" Margin="0,0,14,0">
+                                    <TextBlock Text="2" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Spacing="14">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Classes="stepTitle" Text="{l:T Step2Title}" />
+                                        <TextBlock Classes="caption"
+                                                   Text="{l:T Step2Sub}" />
+                                    </StackPanel>
+
+                                    <Button Classes="accent cta" Command="{Binding GenerateCommand}"
+                                            HorizontalAlignment="Left" IsVisible="{Binding !IsBusy}">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <Path Classes="icon" Width="18" Height="18" VerticalAlignment="Center" Stroke="#FFFFFF" Data="{StaticResource IconPin}" />
+                                            <TextBlock Text="{l:T CreateMyMap}" VerticalAlignment="Center" Foreground="#FFFFFF" FontSize="16" />
+                                        </StackPanel>
+                                    </Button>
+                                    <TextBlock Classes="caption" Text="{l:T AddPlanFirst}"
+                                               IsVisible="{Binding InputFileName, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+
+                                    <!-- Working... -->
+                                    <StackPanel Spacing="10" IsVisible="{Binding IsBusy}">
+                                        <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" FontSize="15" />
+                                        <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress}" Height="8" CornerRadius="4" />
+                                        <TextBlock Classes="caption" Text="{l:T HangTight}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- == Error == -->
+                    <Border Classes="card" BorderBrush="{StaticResource DangerBrush}" Background="#1FEF4444"
+                            IsVisible="{Binding ErrorText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{l:T SomethingWrong}" FontWeight="SemiBold" Foreground="{StaticResource DangerBrush}" />
+                            <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- == Success screen == -->
+                    <StackPanel Spacing="16" IsVisible="{Binding HasResult}">
+                        <Border Classes="card" Padding="24" BorderBrush="{StaticResource SuccessBrush}" Background="#1F22C55E">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Border Grid.Column="0" Width="52" Height="52" CornerRadius="26" Background="#3322C55E"
+                                        VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <!-- Height only: a fixed square box leaves the tall pin off-center. -->
+                                    <Path Classes="icon" Height="26" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Stroke="{StaticResource SuccessBrush}" Data="{StaticResource IconPin}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="{l:T MapReady}" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" />
+                                    <TextBlock Text="{Binding ResultTripName}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBlock Classes="caption">
+                                        <Run Text="{Binding ResultFiles.Count}" />
+                                        <Run Text="{l:T MapsCreated}" />
+                                    </TextBlock>
+                                </StackPanel>
+                                <Button Grid.Column="2" VerticalAlignment="Center" Padding="16,10"
+                                        Command="{Binding StartOverCommand}" Content="{l:T MakeAnother}" />
+                            </Grid>
+                        </Border>
+
+                        <Grid ColumnDefinitions="*,*,*">
                             <Border Grid.Column="0" Classes="card" Margin="0,0,8,0">
                                 <StackPanel>
-                                    <TextBlock Classes="metricLabel" Text="DAYS" />
+                                    <TextBlock Classes="metricLabel" Text="{l:T Days}" />
                                     <TextBlock Classes="metricValue" Text="{Binding ResultDays}" />
                                 </StackPanel>
                             </Border>
                             <Border Grid.Column="1" Classes="card" Margin="4,0">
                                 <StackPanel>
-                                    <TextBlock Classes="metricLabel" Text="LOCATIONS" />
+                                    <TextBlock Classes="metricLabel" Text="{l:T Places}" />
                                     <TextBlock Classes="metricValue" Text="{Binding ResultLocations}" />
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="2" Classes="card" Margin="8,0,0,0">
+                            <Border Grid.Column="2" Classes="card" Margin="8,0,0,0"
+                                    ToolTip.Tip="{l:T PinnedTip}">
                                 <StackPanel>
-                                    <TextBlock Classes="metricLabel" Text="EXACT COORDS" />
+                                    <TextBlock Classes="metricLabel" Text="{l:T PinnedExactly}" />
                                     <TextBlock Classes="metricValue" Text="{Binding ResultExactCoords}" />
                                 </StackPanel>
                             </Border>
@@ -271,23 +401,13 @@
                         <Border Classes="card" BorderBrush="{StaticResource WarnBrush}" Background="#1FF59E0B"
                                 IsVisible="{Binding GeocodeWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                             <TextBlock TextWrapping="Wrap" Foreground="{StaticResource WarnBrush}">
-                                <Run Text="Coordinates kept from Gemini — geocoding did not run." FontWeight="SemiBold" />
+                                <Run Text="{l:T ApproxPins}" FontWeight="SemiBold" />
                                 <LineBreak />
                                 <Run Text="{Binding GeocodeWarning}" />
                             </TextBlock>
                         </Border>
 
-                        <TextBlock Classes="sideHeader" Text="FILES" Margin="0,4,0,0" />
-                        <TextBlock Classes="caption"
-                                   Text="Not saved to disk — download the KML files to a folder of your choice." />
-                        <Button Name="DownloadButton" Classes="accent"
-                                HorizontalAlignment="Stretch" Padding="14,10">
-                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                                <Path Classes="icon" Width="16" Height="16" VerticalAlignment="Center" Stroke="#FFFFFF" Data="{StaticResource IconDownload}" />
-                                <TextBlock Text="Download KML files" VerticalAlignment="Center" Foreground="#FFFFFF" />
-                            </StackPanel>
-                        </Button>
-
+                        <TextBlock Classes="stepTitle" Text="{l:T YourMaps}" Margin="0,4,0,0" />
                         <ItemsControl ItemsSource="{Binding ResultFiles}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:KmlFileItem">
@@ -295,29 +415,29 @@
                                         <Grid ColumnDefinitions="*,Auto">
                                             <StackPanel Grid.Column="0" Spacing="3">
                                                 <StackPanel Orientation="Horizontal" Spacing="7">
-                                                    <Path Classes="icon" Width="14" Height="14" VerticalAlignment="Center" Data="{StaticResource IconPin}" />
-                                                    <TextBlock FontWeight="SemiBold" Text="{Binding DayLabel}" VerticalAlignment="Center" />
+                                                    <Path Classes="icon" Width="15" Height="15" VerticalAlignment="Center" Data="{StaticResource IconPin}" />
+                                                    <TextBlock FontWeight="SemiBold" FontSize="15" Text="{Binding DayLabel}" VerticalAlignment="Center" />
                                                 </StackPanel>
+                                                <TextBlock Classes="caption" Text="{Binding SharedWith}"
+                                                           IsVisible="{Binding SharedWith, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                                <TextBlock Classes="caption" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap"
+                                                           IsVisible="{Binding MapError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                    <Run Text="{l:T MapNotCreated}" FontWeight="SemiBold" />
+                                                    <Run Text="{Binding MapError}" />
+                                                </TextBlock>
                                                 <TextBlock Classes="caption">
                                                     <Run Text="{Binding FileName}" />
                                                     <Run Text="·" />
                                                     <Run Text="{Binding SizeText}" />
                                                 </TextBlock>
-                                                <TextBlock Classes="caption" Text="{Binding SharedWith}"
-                                                           IsVisible="{Binding SharedWith, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                                <TextBlock Classes="caption" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap"
-                                                           IsVisible="{Binding MapError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                                    <Run Text="Map not created:" FontWeight="SemiBold" />
-                                                    <Run Text="{Binding MapError}" />
-                                                </TextBlock>
                                             </StackPanel>
-                                            <Button Grid.Column="1" VerticalAlignment="Center"
+                                            <Button Grid.Column="1" Classes="accent" VerticalAlignment="Center" Padding="16,9"
                                                     IsVisible="{Binding HasMap}"
                                                     Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).OpenMapCommand}"
                                                     CommandParameter="{Binding}">
                                                 <StackPanel Orientation="Horizontal" Spacing="7">
-                                                    <Path Classes="icon" Width="15" Height="15" VerticalAlignment="Center" Data="{StaticResource IconGlobe}" />
-                                                    <TextBlock Text="Open map" VerticalAlignment="Center" />
+                                                    <Path Classes="icon" Width="15" Height="15" VerticalAlignment="Center" Stroke="#FFFFFF" Data="{StaticResource IconGlobe}" />
+                                                    <TextBlock Text="{l:T OpenMap}" VerticalAlignment="Center" Foreground="#FFFFFF" />
                                                 </StackPanel>
                                             </Button>
                                         </Grid>
@@ -326,10 +446,23 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <Expander Header="How to import into Google My Maps">
-                            <TextBlock TextWrapping="Wrap" Margin="0,6" LineHeight="22"
-                                       Text="1. Open Google My Maps (google.com/mymaps) → Create a new map.&#10;2. Click Import under a layer and upload one KML file.&#10;3. Each KML adds up to 10 day-layers. For longer trips, import each file into its own layer/map." />
-                        </Expander>
+                        <Border Classes="card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Classes="fieldLabel" Text="{l:T KeepCopy}" />
+                                <TextBlock Classes="caption"
+                                           Text="{l:T KeepCopyHelp}" />
+                                <Button Name="DownloadButton" HorizontalAlignment="Left" Padding="16,9">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Path Classes="icon" Width="16" Height="16" VerticalAlignment="Center" Data="{StaticResource IconDownload}" />
+                                        <TextBlock Text="{l:T SaveMapFiles}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Expander Header="{l:T HowImport}" HorizontalAlignment="Stretch">
+                                    <TextBlock TextWrapping="Wrap" Margin="0,6" LineHeight="22"
+                                               Text="{l:T HowImportSteps}" />
+                                </Expander>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </StackPanel>
 
@@ -338,14 +471,14 @@
                     <StackPanel Orientation="Horizontal" Spacing="11">
                         <Path Classes="icon" Width="26" Height="26" VerticalAlignment="Center"
                               StrokeThickness="1.6" Stroke="#3B82F6" Data="{StaticResource IconChart}" />
-                        <TextBlock Classes="h1" Text="Analytics" VerticalAlignment="Center" />
+                        <TextBlock Classes="h1" Text="{l:T NavAnalytics}" VerticalAlignment="Center" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <TextBlock Classes="caption" FontSize="13.5" VerticalAlignment="Center"
-                                   Text="Trip stats, stored in and read from your Google Sheet." />
+                                   Text="{l:T AnalyticsSub}" />
                         <Button Classes="nav" Padding="8,3" Command="{Binding OpenAnalyticsSheetCommand}"
                                 IsVisible="{Binding HasAnalyticsSheetLink}">
-                            <TextBlock Text="Open the Sheet ↗" FontSize="12.5" />
+                            <TextBlock Text="{l:T OpenSheet}" FontSize="12.5" />
                         </Button>
                     </StackPanel>
 
@@ -360,19 +493,19 @@
                         <Grid ColumnDefinitions="*,*,*">
                             <Border Grid.Column="0" Classes="card" Margin="0,0,8,0">
                                 <StackPanel>
-                                    <TextBlock Classes="metricLabel" Text="TRIPS" />
+                                    <TextBlock Classes="metricLabel" Text="{l:T Trips}" />
                                     <TextBlock Classes="metricValue" Text="{Binding TotalTrips}" />
                                 </StackPanel>
                             </Border>
                             <Border Grid.Column="1" Classes="card" Margin="4,0">
                                 <StackPanel>
-                                    <TextBlock Classes="metricLabel" Text="MAPS" />
+                                    <TextBlock Classes="metricLabel" Text="{l:T Maps}" />
                                     <TextBlock Classes="metricValue" Text="{Binding TotalMaps}" />
                                 </StackPanel>
                             </Border>
                             <Border Grid.Column="2" Classes="card" Margin="8,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Classes="metricLabel" Text="PLACES" />
+                                    <TextBlock Classes="metricLabel" Text="{l:T Places}" />
                                     <TextBlock Classes="metricValue" Text="{Binding TotalPlaces}" />
                                 </StackPanel>
                             </Border>
@@ -383,7 +516,7 @@
                         <!-- Places-per-trip bar chart -->
                         <Border Classes="card">
                             <StackPanel Spacing="10">
-                                <TextBlock Classes="sideHeader" Text="PLACES PER TRIP (RECENT)" />
+                                <TextBlock Classes="sideHeader" Text="{l:T PlacesPerTrip}" />
                                 <ItemsControl ItemsSource="{Binding AnalyticsBars}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:AnalyticsBar">
@@ -410,23 +543,23 @@
                     <StackPanel Orientation="Horizontal" Spacing="11">
                         <Path Classes="icon" Width="26" Height="26" VerticalAlignment="Center"
                               StrokeThickness="1.6" Stroke="#3B82F6" Data="{StaticResource IconSettings}" />
-                        <TextBlock Classes="h1" Text="Settings" VerticalAlignment="Center" />
+                        <TextBlock Classes="h1" Text="{l:T NavSettings}" VerticalAlignment="Center" />
                     </StackPanel>
                     <TextBlock Classes="caption" FontSize="13.5"
-                               Text="Saved on this computer, so you only enter them once." />
+                               Text="{l:T SettingsSub}" />
 
                     <!-- One-file setup -->
                     <Border Classes="card" BorderBrush="{StaticResource InfoBrush}" Background="#1438BDF8">
                         <StackPanel Spacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Path Classes="icon" Width="17" Height="17" VerticalAlignment="Center" Stroke="{StaticResource InfoBrush}" Data="{StaticResource IconBox}" />
-                                <TextBlock Classes="subhead" Text="One-file setup" VerticalAlignment="Center" />
+                                <TextBlock Classes="subhead" Text="{l:T OneFileSetup}" VerticalAlignment="Center" />
                             </StackPanel>
                             <TextBlock Classes="caption"
-                                       Text="Drop a single JSON to fill in every setting below — API keys, the service-account JSON, and the Drive credentials.json (written automatically). Any key not in the file keeps its current value." />
+                                       Text="{l:T OneFileSetupHelp}" />
                             <StackPanel Orientation="Horizontal" Spacing="10">
-                                <Button Name="SetupBundleButton" Content="Choose setup file…" />
-                                <TextBlock Classes="caption" Text="…or drag the .json here" VerticalAlignment="Center" />
+                                <Button Name="SetupBundleButton" Content="{l:T ChooseSetupFile}" />
+                                <TextBlock Classes="caption" Text="{l:T OrDragJson}" VerticalAlignment="Center" />
                             </StackPanel>
                             <TextBlock Classes="caption" Text="{Binding SetupMessage}" Foreground="{StaticResource SuccessBrush}"
                                        IsVisible="{Binding SetupMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
@@ -435,9 +568,9 @@
 
                     <Border Classes="card">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="Gemini API key" />
+                            <TextBlock Classes="subhead" Text="{l:T GeminiKey}" />
                             <TextBlock Classes="caption"
-                                       Text="Used to read the itinerary and extract every place per day." />
+                                       Text="{l:T GeminiKeyHelp}" />
                             <Grid>
                                 <TextBox Name="GeminiKeyBox" PasswordChar="•" Text="{Binding GoogleApiKey}"
                                          Padding="8,6,40,6" Watermark="AIza…" />
@@ -451,9 +584,9 @@
 
                     <Border Classes="card">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="Places API (New) key" />
+                            <TextBlock Classes="subhead" Text="{l:T PlacesKey}" />
                             <TextBlock Classes="caption"
-                                       Text="Snaps each place name to its exact Google Maps coordinates via Places API (New) Text Search — enable &quot;Places API (New)&quot; on the key's project. Without it, Gemini's rougher coordinates are used." />
+                                       Text="{l:T PlacesKeyHelp}" />
                             <Grid>
                                 <TextBox Name="GeoKeyBox" PasswordChar="•" Text="{Binding GeoApiKey}"
                                          Padding="8,6,40,6" Watermark="AIza…" />
@@ -468,35 +601,35 @@
                     <!-- Service-account JSON (usage gauge) -->
                     <Border Classes="card" IsVisible="{Binding Features.Analytics}">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="Usage gauge (optional)" />
+                            <TextBlock Classes="subhead" Text="{l:T UsageGauge}" />
                             <TextBlock Classes="caption"
-                                       Text="Paste the service-account JSON to show the live Places API usage ring — the project is read from it. Needs the Cloud Monitoring API enabled and a service account with roles/monitoring.viewer." />
+                                       Text="{l:T UsageGaugeHelp}" />
                             <TextBox AcceptsReturn="True" Height="90" TextWrapping="Wrap"
                                      Text="{Binding GcpSaJson}"
-                                     Watermark="Paste the whole service-account .json here" />
+                                     Watermark="{l:T PasteSaJson}" />
                         </StackPanel>
                     </Border>
 
                     <!-- Analytics Sheet -->
                     <Border Classes="card" IsVisible="{Binding Features.Analytics}">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="Analytics Sheet (optional)" />
+                            <TextBlock Classes="subhead" Text="{l:T AnalyticsSheet}" />
                             <TextBlock Classes="caption"
-                                       Text="Logs every generated trip to a Google Sheet the Analytics page reads back. Paste the Sheet ID (or its full URL); share the Sheet as Editor with the service account's email above and enable the Google Sheets API." />
+                                       Text="{l:T AnalyticsSheetHelp}" />
                             <TextBox Text="{Binding AnalyticsSheetId}"
-                                     Watermark="Sheet ID, or https://docs.google.com/spreadsheets/d/…" />
+                                     Watermark="{l:T SheetIdWatermark}" />
                         </StackPanel>
                     </Border>
 
                     <!-- Drive sharing credentials -->
                     <Border Classes="card" IsVisible="{Binding Features.Publish}">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="Drive sharing credentials (optional)" />
+                            <TextBlock Classes="subhead" Text="{l:T DriveCreds}" />
                             <TextBlock Classes="caption"
-                                       Text="Needed only to share maps. An OAuth Desktop client credentials.json (Drive API enabled), saved locally; a browser consent runs once on first share." />
+                                       Text="{l:T DriveCredsHelp}" />
                             <StackPanel Orientation="Horizontal" Spacing="10">
-                                <Button Name="CredentialsButton" Content="Choose credentials.json…" />
-                                <TextBlock Classes="caption" Text="…or drag the .json here" VerticalAlignment="Center" />
+                                <Button Name="CredentialsButton" Content="{l:T ChooseCreds}" />
+                                <TextBlock Classes="caption" Text="{l:T OrDragJson}" VerticalAlignment="Center" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -504,16 +637,16 @@
                     <!-- Cloud publishing session (browser host only) -->
                     <Border Classes="card" IsVisible="{Binding Features.RequiresSession}">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="Cloud publishing session" />
+                            <TextBlock Classes="subhead" Text="{l:T CloudSession}" />
                             <TextBlock Classes="caption"
-                                       Text="Run the login helper on your computer to sign in once and produce session.json, then load it here. It's stored only in this browser and lets the cloud worker publish your maps." />
+                                       Text="{l:T CloudSessionHelp}" />
                             <StackPanel Orientation="Horizontal" Spacing="10">
-                                <Button Name="SessionButton" Content="Choose session.json…" />
-                                <TextBlock Classes="caption" Text="…or drag the .json here" VerticalAlignment="Center" />
+                                <Button Name="SessionButton" Content="{l:T ChooseSession}" />
+                                <TextBlock Classes="caption" Text="{l:T OrDragJson}" VerticalAlignment="Center" />
                             </StackPanel>
                             <TextBlock>
                                 <Run Text="{Binding HasPublishSession, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="Session loaded" />
+                                <Run Text="{l:T SessionLoaded}" />
                             </TextBlock>
                             <TextBlock Classes="caption" Text="{Binding SessionStatus}" />
                         </StackPanel>
@@ -522,26 +655,26 @@
                     <!-- Setup status -->
                     <Border Classes="card">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="Setup status" Margin="0,0,0,4" />
+                            <TextBlock Classes="subhead" Text="{l:T SetupStatus}" Margin="0,0,0,4" />
                             <TextBlock>
                                 <Run Text="{Binding HasGeminiKey, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="Gemini API key" />
+                                <Run Text="{l:T GeminiKey}" />
                             </TextBlock>
                             <TextBlock>
                                 <Run Text="{Binding HasGeoKey, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="Places API (New) key" />
+                                <Run Text="{l:T PlacesKey}" />
                             </TextBlock>
                             <TextBlock IsVisible="{Binding Features.Publish}">
                                 <Run Text="{Binding HasGoogleLogin, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="Signed in to Google (My Maps)" />
+                                <Run Text="{l:T SignedInMyMaps}" />
                             </TextBlock>
                             <TextBlock IsVisible="{Binding Features.Publish}">
                                 <Run Text="{Binding HasDriveCredentials, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="Drive credentials.json" />
+                                <Run Text="{l:T DriveCredsFile}" />
                             </TextBlock>
                             <TextBlock IsVisible="{Binding Features.Publish}">
                                 <Run Text="{Binding HasDriveToken, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="Drive access authorized" />
+                                <Run Text="{l:T DriveAuthorized}" />
                             </TextBlock>
                         </StackPanel>
                     </Border>
@@ -549,19 +682,19 @@
                     <!-- About & updates -->
                     <Border Classes="card" IsVisible="{Binding Features.Updates}">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="About &amp; updates" />
+                            <TextBlock Classes="subhead" Text="{l:T AboutUpdates}" />
                             <TextBlock Classes="caption">
                                 <Run Text="My Maps Generator" />
                                 <Run Text="{Binding AppVersion}" FontWeight="SemiBold" />
                             </TextBlock>
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Check for updates"
+                                <Button Content="{l:T CheckUpdates}"
                                         Command="{Binding CheckForUpdatesCommand}"
                                         IsEnabled="{Binding !IsCheckingUpdate}" />
-                                <Button Classes="accent" Content="Download &amp; install"
+                                <Button Classes="accent" Content="{l:T DownloadInstall}"
                                         IsVisible="{Binding UpdateAvailable}"
                                         Command="{Binding DownloadAndInstallUpdateCommand}" />
-                                <Button Content="Release page"
+                                <Button Content="{l:T ReleasePage}"
                                         Command="{Binding OpenReleasePageCommand}" />
                             </StackPanel>
                             <TextBlock Classes="caption" Text="{Binding UpdateStatus}"
@@ -571,5 +704,32 @@
                 </StackPanel>
             </Grid>
         </ScrollViewer>
+
+        <!-- ======================= TRIP NAME PANEL ========================== -->
+        <!-- Slides over the right edge mid-run; the pipeline keeps extracting but waits for
+             Approve before writing KML files / publishing. -->
+        <Border Grid.Column="2" Width="360" HorizontalAlignment="Right"
+                Background="{StaticResource SidebarBrush}"
+                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1,0,0,0"
+                BoxShadow="-8 0 24 0 #66000000"
+                IsVisible="{Binding IsNamePromptOpen}">
+            <StackPanel Margin="24,28" Spacing="14">
+                <TextBlock Classes="h1" FontSize="20" Text="{l:T TripName}" />
+                <TextBlock Classes="caption" TextWrapping="Wrap"
+                           Text="{l:T TripNameHelp}" />
+                <TextBox Text="{Binding ProposedTripName}" FlowDirection="RightToLeft"
+                         FontSize="16" Padding="10,8" />
+                <TextBlock Classes="caption" TextWrapping="Wrap"
+                           Text="{l:T TripNameTitleHelp}" />
+                <Button Classes="accent" Command="{Binding ApproveTripNameCommand}"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="18,10">
+                    <TextBlock Text="{l:T ApproveName}" Foreground="#FFFFFF" />
+                </Button>
+                <Button Classes="danger" Command="{Binding CancelTripCommand}"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="18,10">
+                    <TextBlock Text="{l:T CancelTrip}" Foreground="#FFFFFF" />
+                </Button>
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

@@ -18,17 +18,44 @@ public class GeocodingService(HttpClient http, string apiKey)
     // quota, bad key) — no point hammering the rest of the itinerary once seen.
     private static readonly HashSet<string> FatalStatuses = ["PERMISSION_DENIED", "RESOURCE_EXHAUSTED", "UNAUTHENTICATED"];
 
+    // Candidates to compare. Text Search bills per request, not per result, so 5 is free.
+    private const int CandidateCount = 5;
+    // Bias radius around Gemini's own guess — keeps a same-name place in another city out of
+    // the top results. 50 km is the API maximum; it biases, it doesn't restrict.
+    private const double BiasRadiusMeters = 50_000;
+
     /// <summary>
     /// Resolves a place name to coordinates. Returns null on any recoverable failure.
     /// Throws PipelineException for a fatal, itinerary-wide failure (bad key, quota).
     /// </summary>
-    public async Task<(double Lat, double Lng)?> GeocodePlaceAsync(string name, CancellationToken ct = default)
+    public async Task<(double Lat, double Lng)?> GeocodePlaceAsync(
+        string name, double? biasLat = null, double? biasLng = null, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(name)) return null;
 
+        // languageCode=en: display names come back in English, so PickBest can compare them
+        // with Gemini's (mostly English) names instead of e.g. Japanese.
+        var body = new JsonObject
+        {
+            ["textQuery"] = name,
+            ["pageSize"] = CandidateCount,
+            ["languageCode"] = "en",
+        };
+        if (biasLat is { } lat && biasLng is { } lng && (lat != 0 || lng != 0))
+        {
+            body["locationBias"] = new JsonObject
+            {
+                ["circle"] = new JsonObject
+                {
+                    ["center"] = new JsonObject { ["latitude"] = lat, ["longitude"] = lng },
+                    ["radius"] = BiasRadiusMeters,
+                },
+            };
+        }
+
         using var request = new HttpRequestMessage(HttpMethod.Post, AppConfig.PlacesTextSearchUrl)
         {
-            Content = new StringContent(new JsonObject { ["textQuery"] = name }.ToJsonString(), Encoding.UTF8, "application/json"),
+            Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json"),
         };
         request.Headers.Add("X-Goog-Api-Key", apiKey);
         request.Headers.Add("X-Goog-FieldMask", AppConfig.PlacesFieldMask);
@@ -62,9 +89,9 @@ public class GeocodingService(HttpClient http, string apiKey)
         }
 
         // No match is an empty body ({}), not an error status.
-        var location = payload?.Places?.FirstOrDefault()?.Location;
-        if (location?.Latitude is null || location.Longitude is null) return null;
-        return (location.Latitude.Value, location.Longitude.Value);
+        var best = PickBest(payload?.Places ?? [], name);
+        if (best?.Location is not { Latitude: { } bestLat, Longitude: { } bestLng }) return null;
+        return (bestLat, bestLng);
     }
 
     /// <summary>
@@ -94,7 +121,7 @@ public class GeocodingService(HttpClient http, string apiKey)
             (double Lat, double Lng)? result;
             try
             {
-                result = await GeocodePlaceAsync(loc.Name, ct);
+                result = await GeocodePlaceAsync(loc.Name, loc.Lat, loc.Lng, ct);
             }
             catch (PipelineException e)
             {
@@ -114,6 +141,35 @@ public class GeocodingService(HttpClient http, string apiKey)
             }
         }
         return (corrected, fallback, null);
+    }
+
+    /// <summary>
+    /// Picks Google's first located candidate, unless a later one's name tokens exactly match
+    /// the extracted name's. Google ranks by relevance + prominence, so a popular place whose
+    /// name merely *contains* the query ("Nike Shibuya Scramble Square") can outrank the exact
+    /// match ("Nike Shibuya"). We override Google's order only on an exact token-set match
+    /// against the name before its ", City" suffix — a fuzzier (partial-overlap) rule let a
+    /// near-miss beat a correct first hit: an accent difference (Tōdai-ji vs "todai") lost to
+    /// a lower candidate with extra descriptor words ("Todai-ji Temple Museum").
+    /// </summary>
+    internal static PlaceDto? PickBest(IReadOnlyList<PlaceDto> places, string name)
+    {
+        var located = places
+            .Where(p => p.Location?.Latitude is not null && p.Location.Longitude is not null)
+            .ToList();
+        var wanted = NameTokens(name.Split(',')[0]);
+        return located.FirstOrDefault(p => NameTokens(p.DisplayName?.Text ?? "").SetEquals(wanted))
+            ?? located.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Lowercase letter/digit tokens. Deliberately no Unicode normalization —
+    /// InvariantGlobalization is on (see CLAUDE.md), so stick to char-level APIs.
+    /// </summary>
+    internal static HashSet<string> NameTokens(string text)
+    {
+        var chars = text.Select(c => char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : ' ').ToArray();
+        return new string(chars).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
     }
 }
 

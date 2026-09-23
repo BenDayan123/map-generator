@@ -25,29 +25,49 @@ public class PipelineService(GeminiExtractionService gemini, GeocodingService ge
     /// Extract -> geocode -> KML, held in memory (the browser host offers the files as
     /// downloads). Nothing is written to disk; Files and OutputDir stay empty.
     /// </summary>
-    public Task<PipelineResult> GenerateAsync(
+    public async Task<PipelineResult> GenerateAsync(
         string filePath,
         int layersPerFile = AppConfig.MaxLayersPerFile,
         bool noGeocode = false,
         ProgressCallback? progress = null,
-        CancellationToken ct = default) =>
-        BuildAsync(() => gemini.ExtractItineraryAsync(filePath, ct), layersPerFile, noGeocode, progress, ct);
+        Func<string, Task<string>>? confirmTripName = null,
+        CancellationToken ct = default)
+    {
+        byte[] content;
+        try
+        {
+            content = await File.ReadAllBytesAsync(filePath, ct);
+        }
+        catch (Exception e)
+        {
+            throw new PipelineException($"Failed to read '{filePath}': {e.Message}", e);
+        }
+        return await GenerateAsync(Path.GetFileName(filePath), content, layersPerFile, noGeocode, progress, confirmTripName, ct);
+    }
 
     /// <summary>Same as the path overload, for an itinerary already in memory (the browser host).</summary>
-    public Task<PipelineResult> GenerateAsync(
+    /// <remarks>
+    /// With <paramref name="confirmTripName"/>, Gemini's suggested Hebrew name is handed to it while
+    /// extraction and geocoding keep running; building the KML (and everything after) waits for
+    /// the approved name. Cancelling <paramref name="ct"/> aborts the run.
+    /// </remarks>
+    public async Task<PipelineResult> GenerateAsync(
         string fileName,
         byte[] content,
         int layersPerFile = AppConfig.MaxLayersPerFile,
         bool noGeocode = false,
         ProgressCallback? progress = null,
-        CancellationToken ct = default) =>
-        BuildAsync(() => gemini.ExtractItineraryAsync(fileName, content, ct), layersPerFile, noGeocode, progress, ct);
-
-    private async Task<PipelineResult> BuildAsync(
-        Func<Task<Models.Trip>> extract, int layersPerFile, bool noGeocode, ProgressCallback? progress, CancellationToken ct)
+        Func<string, Task<string>>? confirmTripName = null,
+        CancellationToken ct = default)
     {
         progress?.Invoke("Extracting locations with Gemini", 0.35);
-        var trip = await extract();
+        var document = await gemini.BuildDocumentPartAsync(fileName, content, ct);
+
+        var nameTask = confirmTripName is null
+            ? null
+            : ConfirmNameAsync(document, fileName, confirmTripName, ct);
+
+        var trip = await gemini.ExtractItineraryAsync(document, ct);
         if (trip.Days.Count == 0)
             throw new PipelineException("No days found in the extracted itinerary.");
 
@@ -58,6 +78,12 @@ public class PipelineService(GeminiExtractionService gemini, GeocodingService ge
         {
             progress?.Invoke("Snapping place names to exact coordinates", 0.6);
             (corrected, fallback, geocodeWarning) = await geocoding.GeocodeItineraryAsync(trip, ct);
+        }
+
+        if (nameTask is not null)
+        {
+            progress?.Invoke("Waiting for the trip name to be approved", 0.8);
+            trip.TripName = await nameTask;
         }
 
         progress?.Invoke("Building KML files", 0.85);
@@ -82,14 +108,23 @@ public class PipelineService(GeminiExtractionService gemini, GeocodingService ge
         int layersPerFile = AppConfig.MaxLayersPerFile,
         bool noGeocode = false,
         ProgressCallback? progress = null,
+        Func<string, Task<string>>? confirmTripName = null,
         CancellationToken ct = default)
     {
-        var result = await GenerateAsync(filePath, layersPerFile, noGeocode, progress, ct);
+        var result = await GenerateAsync(filePath, layersPerFile, noGeocode, progress, confirmTripName, ct);
 
         var tripDir = Path.Combine(outputDir, KmlBuilder.SanitizeFolderName(result.TripName));
         var files = KmlBuilder.SaveKmlFiles(result.KmlFiles, tripDir);
 
         progress?.Invoke("Done", 1.0);
         return result with { Files = files, OutputDir = tripDir };
+    }
+
+    private async Task<string> ConfirmNameAsync(
+        System.Text.Json.Nodes.JsonObject document, string fileName,
+        Func<string, Task<string>> confirm, CancellationToken ct)
+    {
+        var suggested = await gemini.SuggestTripNameAsync(document, fileName, ct);
+        return await confirm(suggested);
     }
 }

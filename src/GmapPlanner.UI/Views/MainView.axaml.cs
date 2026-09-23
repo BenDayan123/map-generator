@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using GmapPlanner.App.Localization;
 using GmapPlanner.App.ViewModels;
 
 namespace GmapPlanner.App.Views;
@@ -13,6 +14,7 @@ public partial class MainView : UserControl
         InitializeComponent();
 
         BrowseInputButton.Click += async (_, _) => await SafeAsync(BrowseInputFileAsync);
+        ReplaceInputButton.Click += async (_, _) => await SafeAsync(BrowseInputFileAsync);
         DownloadButton.Click += async (_, _) => await SafeAsync(() => Vm?.SaveKmlFilesAsync(Storage) ?? Task.CompletedTask);
         SetupBundleButton.Click += async (_, _) => await SafeAsync(BrowseSetupBundleAsync);
         CredentialsButton.Click += async (_, _) => await SafeAsync(BrowseCredentialsAsync);
@@ -23,8 +25,25 @@ public partial class MainView : UserControl
         EmailEntry.KeyDown += OnEmailEntryKeyDown;
         EmailEntry.LostFocus += (_, _) => CommitEmailEntry();
 
-        // Drop a file onto the itinerary zone, or straight onto the Settings pickers.
-        EnableFileDrop(DropZone, (vm, f) => vm.LoadInputFileAsync(f));
+        // Itinerary drop zone: highlight while dragging, and exactly one file.
+        DragDrop.SetAllowDrop(DropZone, true);
+        DropZone.AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        DropZone.AddHandler(DragDrop.DragEnterEvent, (_, _) => DropZone.Classes.Set("dragOver", true));
+        DropZone.AddHandler(DragDrop.DragLeaveEvent, (_, _) => DropZone.Classes.Set("dragOver", false));
+        DropZone.AddHandler(DragDrop.DropEvent, async (_, e) => await SafeAsync(async () =>
+        {
+            DropZone.Classes.Set("dragOver", false);
+            if (Vm is not { } vm) return;
+            var files = e.Data.GetFiles()?.OfType<IStorageFile>().ToList() ?? [];
+            if (files.Count > 1)
+            {
+                vm.ErrorText = Loc.T("ErrOneFile");
+                return;
+            }
+            if (files.FirstOrDefault() is { } file) await vm.LoadInputFileAsync(file);
+        }));
+
+        // Drop a file straight onto the Settings pickers.
         EnableFileDrop(SetupBundleButton, (vm, f) => vm.LoadSetupBundleAsync(f));
         EnableFileDrop(CredentialsButton, (vm, f) => vm.LoadDriveCredentialsAsync(f));
         EnableFileDrop(SessionButton, (vm, f) => vm.LoadSessionFileAsync(f));
@@ -110,6 +129,9 @@ public partial class MainView : UserControl
             vm.ErrorText = e.Message;
         }
     }
+
+    private static void OnDragOver(object? sender, DragEventArgs e) =>
+        e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None;
 
     /// <summary>Lets a control accept a dropped file, handing the first file to the VM.</summary>
     private void EnableFileDrop(Control target, Func<MainViewModel, IStorageFile, Task> onFile)

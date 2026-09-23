@@ -6,10 +6,19 @@ public static class ExtractionPrompt
         You are a travel data extraction assistant.
         Read the attached travel itinerary and extract EVERY place a tourist could go to, for every day.
 
-        The document is usually written in HEBREW (right-to-left), and the place names inside it may be
-        in Hebrew, in English, or in the local language of the destination — often mixed in the same
-        sentence. Read all of it, in every language and script. Never skip a place because its name is in
-        a different language than the surrounding text.
+        The document is usually written in HEBREW (right-to-left), but the PLACE NAMES inside it are
+        MOSTLY WRITTEN IN ENGLISH (sometimes in Hebrew or in the local language of the destination), often
+        mixed into Hebrew sentences. Read all of it, in every language and script. Never skip a place because
+        its name is in a different language than the surrounding text.
+
+        Your job for place names is EXTRACTION, not interpretation. Precision matters more than anything:
+        - When a place name is written in English (or Latin script), copy it EXACTLY as written — same words,
+          same spelling, same order. Do not "correct", shorten, expand, translate or rephrase it.
+        - NEVER replace a place with a different place that has a similar, more famous or more "correct"
+          sounding name, and never swap it for a nearby place. If the document says "Omoide Yokocho", the
+          output is "Omoide Yokocho", not some other alley or market.
+        - If you are unsure what a name refers to, still output the document's own wording — do not guess
+          a different place.
 
         Return ONLY a single valid JSON object — no markdown fences, no extra text.
 
@@ -70,9 +79,12 @@ public static class ExtractionPrompt
         - Never invent a place that is not in the document, and never merge two places into one entry.
         - Keep the order in which the places appear in the day. A place that appears on several days is
           listed on each of those days.
-        - "name" must be the name Google Maps would find: use the official local or English name plus the
-          city (e.g. "Nishiki Market, Kyoto"). If the document gives the name only in Hebrew, output the
-          place's real name in its own language/English (e.g. "שוק המצלמות" -> "Nishiki Market, Kyoto").
+        - "name" is the place name exactly as extracted (see the precision rules above) followed by
+          ", <city>" (e.g. document says "Nishiki Market" in the Kyoto day -> "Nishiki Market, Kyoto").
+          Adding the city is the ONLY change allowed to an English name.
+        - If the document gives a name ONLY in Hebrew, output the English/local name of THAT SAME place
+          (a transliteration or its known official name) — never a different place that merely sounds
+          similar. If you cannot identify it with certainty, transliterate the Hebrew literally into English.
           Keep Hebrew ONLY for places whose actual name is Hebrew (e.g. in Israel).
         - "notes" is always in Hebrew — prefer the document's own words about the place.
         - Every location MUST have realistic lat/lng coordinates from your world knowledge (get this info

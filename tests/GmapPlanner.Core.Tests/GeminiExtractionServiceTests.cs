@@ -84,6 +84,22 @@ public class GeminiExtractionServiceTests
         Assert.Equal(2, handler.Calls);
     }
 
+    [Fact]
+    public async Task SuggestTripName_ReturnsGeminisName()
+    {
+        var handler = new FakeHandler(Envelope("""{"trip_name": "טיול ליפן"}"""));
+        var name = await Service(handler).SuggestTripNameAsync(new JsonObject { ["text"] = "x" }, "doc.pdf");
+        Assert.Equal("טיול ליפן", name);
+    }
+
+    [Fact]
+    public async Task SuggestTripName_BadResponse_FallsBackToFileStem()
+    {
+        var handler = new FakeHandler(Envelope("not json"));
+        var name = await Service(handler).SuggestTripNameAsync(new JsonObject { ["text"] = "x" }, "Japan 2025.pdf");
+        Assert.Equal("Japan 2025", name);
+    }
+
     private static GeminiExtractionService Service(HttpMessageHandler handler) =>
         new(new HttpClient(handler), apiKey: "fake-key");
 

@@ -8,7 +8,7 @@
             <!-- ============ DESIGN TOKENS (slate + route-blue dark) ============ -->
             <!-- Surfaces: layered by lightness, not shadows (crisper on desktop). -->
             <SolidColorBrush x:Key="BgBrush"         Color="#0B1120" />
-            <SolidColorBrush x:Key="SidebarBrush"    Color="#0E1626" />
+            <SolidColorBrush x:Key="SidebarBrush"    Color="#13223D" />
             <SolidColorBrush x:Key="CardBrush"       Color="#141E33" />
             <SolidColorBrush x:Key="CardHoverBrush"  Color="#1B2740" />
             <SolidColorBrush x:Key="HairlineBrush"   Color="#24314D" />
@@ -150,6 +150,133 @@
         <Style Selector="Button.accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{StaticResource AccentBrush}" />
             <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+
+        <Style Selector="Button.danger">
+            <Setter Property="Background" Value="#DC2626" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.danger /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+        <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#EF4444" />
+            <Setter Property="BorderBrush" Value="#EF4444" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+        <Style Selector="Button.danger:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#DC2626" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+
+        <!-- ============ SIDEBAR SECTIONS + MAKE-MAP STEPS ============ -->
+        <!-- One soft panel per sidebar topic so beginners see bite-sized groups. -->
+        <Style Selector="Border.sideSection">
+            <Setter Property="Background" Value="#0AFFFFFF" />
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <!-- Numbered step circle on the Make Map page. -->
+        <Style Selector="Border.stepBadge">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="CornerRadius" Value="15" />
+            <Setter Property="Background" Value="{StaticResource AccentSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <Style Selector="Border.stepBadge.done">
+            <Setter Property="Background" Value="#2622C55E" />
+            <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
+        </Style>
+        <Style Selector="Border.stepBadge TextBlock">
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.stepTitle">
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <!-- Big, inviting primary CTA. -->
+        <Style Selector="Button.cta">
+            <Setter Property="Padding" Value="24,14" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="MinHeight" Value="50" />
+        </Style>
+
+        <!-- ============ DROP ZONE ============ -->
+        <Style Selector="Border.dropZone">
+            <Setter Property="Background" Value="#0D1628" />
+            <Setter Property="CornerRadius" Value="14" />
+        </Style>
+        <Style Selector="Border.dropZone.dragOver">
+            <Setter Property="Background" Value="{StaticResource AccentSoftBrush}" />
+        </Style>
+        <Style Selector="Rectangle.dropOutline">
+            <Setter Property="RadiusX" Value="14" />
+            <Setter Property="RadiusY" Value="14" />
+            <Setter Property="Stroke" Value="#3A4F7A" />
+            <Setter Property="StrokeThickness" Value="1.5" />
+            <Setter Property="StrokeDashArray" Value="6,4" />
+        </Style>
+        <Style Selector="Border.dropZone.dragOver Rectangle.dropOutline">
+            <Setter Property="Stroke" Value="{StaticResource AccentHoverBrush}" />
+        </Style>
+
+        <!-- Colorful primary: violet to blue gradient. -->
+        <Style Selector="Button.gradient">
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="20,11" />
+            <Setter Property="Background">
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="#8B5CF6" Offset="0" />
+                    <GradientStop Color="#3B82F6" Offset="1" />
+                </LinearGradientBrush>
+            </Setter>
+        </Style>
+        <Style Selector="Button.gradient /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+        <Style Selector="Button.gradient:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background">
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="#A78BFA" Offset="0" />
+                    <GradientStop Color="#60A5FA" Offset="1" />
+                </LinearGradientBrush>
+            </Setter>
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+        <Style Selector="Button.gradient:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background">
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="#7C3AED" Offset="0" />
+                    <GradientStop Color="#2563EB" Offset="1" />
+                </LinearGradientBrush>
+            </Setter>
+        </Style>
+
+        <!-- Top-bar language switch: a quiet pill. -->
+        <Style Selector="Button.langSwitch">
+            <Setter Property="Background" Value="#0AFFFFFF" />
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Padding" Value="14,6" />
         </Style>
 
         <!-- ============ EMAIL TOKEN INPUT ============ -->

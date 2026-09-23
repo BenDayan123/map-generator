@@ -1,6 +1,7 @@
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using GmapPlanner.Core.Services;
+using GmapPlanner.App.Localization;
 
 namespace GmapPlanner.App.ViewModels;
 
@@ -28,7 +29,7 @@ public partial class KmlFileItem : ObservableObject
         return new KmlFileItem
         {
             File = file,
-            DayLabel = label.Contains('-') ? $"Days {label}" : $"Day {label}",
+            DayLabel = Loc.F(label.Contains('-') ? "DayLabelMany" : "DayLabelOne", label),
             SizeText = $"{Encoding.UTF8.GetByteCount(file.Content) / 1024.0:F0} KB",
         };
     }
