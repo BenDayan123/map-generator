@@ -36,8 +36,17 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 # ditto keeps exec bits and symlinks that cp -R can mangle.
 ditto "$PUBLISH_DIR" "$APP/Contents/MacOS"
 chmod +x "$APP/Contents/MacOS/$EXE"
+
+# codesign auto-scans Contents/MacOS for nested "bundle-shaped" code (frameworks, .xpc, etc.)
+# and chokes on .playwright's multi-level node/<platform>/node tree with "bundle format
+# unrecognized, invalid, or unsuitable" — even with --deep and even signed inside-out first.
+# Real fix (not just a flag): move the driver to Contents/Resources, which isn't scanned for
+# nested code, and leave a symlink at its expected Contents/MacOS/.playwright path so
+# Playwright's own driver lookup (relative to AppContext.BaseDirectory) still finds it.
+mv "$APP/Contents/MacOS/.playwright" "$APP/Contents/Resources/.playwright"
+ln -s "../Resources/.playwright" "$APP/Contents/MacOS/.playwright"
 # Playwright's node driver must stay executable inside the bundle.
-find "$APP/Contents/MacOS/.playwright" -type f -name node -exec chmod +x {} + 2>/dev/null || true
+find "$APP/Contents/Resources/.playwright" -type f -name node -exec chmod +x {} + 2>/dev/null || true
 cp "$ROOT/src/GmapPlanner.App/Assets/icon.icns" "$APP/Contents/Resources/icon.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -64,17 +73,15 @@ PLIST
 # Stray xattrs (Finder info, quarantine) make codesign fail with "resource fork ... not allowed".
 xattr -cr "$APP"
 
-# Inside-out: every file under MacOS except the main executable, then the executable,
-# then the bundle (which seals Info.plist and Resources).
+# Inside-out: every file under MacOS (none are executables besides dylibs and $EXE now that
+# .playwright moved out), the Resources/.playwright node binary, then the main executable,
+# then the bundle (which seals Info.plist, Resources, and the .playwright symlink).
 find "$APP/Contents/MacOS" -type f ! -path "$APP/Contents/MacOS/$EXE" -print0 |
   while IFS= read -r -d '' f; do codesign --force --sign - "$f"; done
-# --deep from here on: $EXE sits at the CFBundleExecutable path Info.plist already names
-# (written above), so codesign treats signing it as signing the whole bundle and tries to
-# validate loose executables under .playwright (no Info.plist, not a .framework/.xpc) as a
-# nested "bundle", failing with "bundle format unrecognized, invalid, or unsuitable" — --deep
-# re-signs each nested Mach-O directly instead of that bundle-shaped discovery.
-codesign --force --deep --sign - "$APP/Contents/MacOS/$EXE"
-codesign --force --deep --sign - "$APP"
+find "$APP/Contents/Resources/.playwright" -type f -name node -print0 |
+  while IFS= read -r -d '' f; do codesign --force --sign - "$f"; done
+codesign --force --sign - "$APP/Contents/MacOS/$EXE"
+codesign --force --sign - "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 
 # DMG layout: the app next to an /Applications shortcut, so the user just drags to install.
