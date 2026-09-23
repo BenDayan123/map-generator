@@ -26,6 +26,11 @@
          "Reflection-based serialization has been disabled". Turn it back on; Playwright
          is a TrimmerRootAssembly, so the types it reflects over survive trimming. -->
     <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <!-- ILLink strips method parameter names by default. Playwright's reflection STJ binds
+         constructor parameters by name (e.g. KeyValuePair<string,string>(key, value)), so
+         without them "Sign in to Google" fails in the published app only: "The deserialization
+         constructor for type 'KeyValuePair`2…' contains parameters with null names". -->
+    <_ExtraTrimmerArgs>$(_ExtraTrimmerArgs) --keep-metadata parametername</_ExtraTrimmerArgs>
   </PropertyGroup>
 
   <PropertyGroup>
