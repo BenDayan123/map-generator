@@ -21,12 +21,12 @@ public record PublishedMap
 /// </summary>
 public static class PublishService
 {
-    /// <summary>Map title: '&lt;trip&gt; — Day(s) N', derived from the KML filename (e.g. 1-10.kml).</summary>
+    /// <summary>Map title: '&lt;trip&gt; (ימים X-Y)' or '&lt;trip&gt; (יום X)', from the KML filename (e.g. 1-10.kml).</summary>
     public static string TitleFor(string kmlPath, string tripName)
     {
         var stem = Path.GetFileNameWithoutExtension(kmlPath);
-        var span = stem.Contains('-') ? $"Days {stem}" : $"Day {stem}";
-        return string.IsNullOrEmpty(tripName) ? span : $"{tripName} — {span}";
+        var span = stem.Contains('-') ? $"ימים {stem}" : $"יום {stem}";
+        return string.IsNullOrEmpty(tripName) ? span : $"{tripName} ({span})";
     }
 
     /// <summary>

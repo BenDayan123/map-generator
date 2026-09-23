@@ -26,10 +26,19 @@ public class PipelineService(GeminiExtractionService gemini, GeocodingService ge
         int layersPerFile = AppConfig.MaxLayersPerFile,
         bool noGeocode = false,
         ProgressCallback? progress = null,
+        Func<string, Task<string>>? confirmTripName = null,
         CancellationToken ct = default)
     {
         progress?.Invoke("Extracting locations with Gemini", 0.35);
-        var trip = await gemini.ExtractItineraryAsync(filePath, ct);
+        var document = await gemini.BuildDocumentPartAsync(filePath, ct);
+
+        // The name prompt runs alongside extraction/geocoding; only writing the KML files
+        // (the folder is named after the trip) and everything after it wait for the user.
+        var nameTask = confirmTripName is null
+            ? null
+            : ConfirmNameAsync(document, Path.GetFileName(filePath), confirmTripName, ct);
+
+        var trip = await gemini.ExtractItineraryAsync(document, ct);
         if (trip.Days.Count == 0)
             throw new PipelineException("No days found in the extracted itinerary.");
 
@@ -40,6 +49,12 @@ public class PipelineService(GeminiExtractionService gemini, GeocodingService ge
         {
             progress?.Invoke("Snapping place names to exact coordinates", 0.6);
             (corrected, fallback, geocodeWarning) = await geocoding.GeocodeItineraryAsync(trip, ct);
+        }
+
+        if (nameTask is not null)
+        {
+            progress?.Invoke("Waiting for the trip name to be approved", 0.8);
+            trip.TripName = await nameTask;
         }
 
         progress?.Invoke("Writing KML files", 0.85);
@@ -60,5 +75,13 @@ public class PipelineService(GeminiExtractionService gemini, GeocodingService ge
             Files = files,
             OutputDir = tripDir,
         };
+    }
+
+    private async Task<string> ConfirmNameAsync(
+        System.Text.Json.Nodes.JsonObject document, string fileName,
+        Func<string, Task<string>> confirm, CancellationToken ct)
+    {
+        var suggested = await gemini.SuggestTripNameAsync(document, fileName, ct);
+        return await confirm(suggested);
     }
 }

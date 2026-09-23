@@ -103,10 +103,20 @@ output folder, the service-account JSON for the usage ring, a credentials.json p
 and a green/⚪ setup-status checklist. The two pages are `IsVisible` toggles on
 `IsMakeMapPage`/`IsSettingsPage`, not a nav framework.
 
+**Languages (English / Hebrew).** A button at the top of the sidebar toggles `MainViewModel.IsHebrew`, which
+flips the window's `FlowDirection` to RTL and is saved as `AppSettings.Language`. Every UI string
+lives in `Localization/Strings.cs` (key → English, Hebrew); XAML uses `{l:T Key}` and code uses
+`Loc.T` / `Loc.F`. `{l:T}` binds through an `IObservable` (`ToBinding()`), not a reflection
+binding, so it stays trim-safe (rule #2). Core's English progress lines are mapped in
+`Loc.Progress`; exception messages from Core/Google stay English. Gotcha: a centered, auto-width
+`TextBlock` with wrapping mis-measures RTL text and hides its last word — use `NoWrap` there.
+
 The usage ring is drawn by hand (`UsageRing.ArcGeometry` builds an SVG-style arc string,
 the view wraps it in a `Geometry` over a `Canvas` so the track ellipse and progress arc
-share one absolute coordinate space). It stays hidden until a service-account JSON is
-set and Cloud Monitoring answers — every failure just hides it, never errors.
+share one absolute coordinate space); a `Viewbox` shrinks it to a small ring with the
+percent inside, and the Places API used/limit and reset countdown sit to its right on the
+same row. It stays hidden until a service-account JSON is set and Cloud Monitoring
+answers — every failure just hides it, never errors.
 
 Everything is MVVM except the file/folder pickers and drag & drop, which need the
 `TopLevel`'s `StorageProvider` and so live in `MainWindow.axaml.cs`. Those handlers are
@@ -121,6 +131,11 @@ take the process down instead of showing up in the error banner.
   constrained output, retry-once on an unusable body (`BadResponseException`), no
   retry on a failed request (plain `PipelineException`). `.txt` goes in inline; other
   files go through the Files API resumable-upload flow (currently just `.pdf`).
+- **Trip name prompt** — `PipelineService.RunAsync(confirmTripName:)` builds the Gemini document
+  part once (`BuildDocumentPartAsync`, one PDF upload), then runs `SuggestTripNameAsync` (Hebrew name
+  from the file name if meaningful, else the body; falls back to the file stem) alongside extraction.
+  The app shows it in a right-side panel (`IsNamePromptOpen`); KML writing and publishing wait for
+  Approve. Map titles are `"<name> (ימים X-Y)"` / `"<name> (יום X)"` (`PublishService.TitleFor`).
 - **`GeocodingService`** — now calls **Places API (New)** Text Search (`POST places:searchText`,
   `X-Goog-FieldMask: places.displayName,places.id,places.location`) instead of the Geocoding
   API, which is an address geocoder and mis-pinned named POIs (wrong city / unrelated shop).
@@ -141,7 +156,7 @@ take the process down instead of showing up in the error banner.
 - **`UsageService`** — ports `usage.py`: a service-account token (via
   `GoogleCredential`, no monitoring SDK) plus a raw Cloud Monitoring `timeSeries` query
   for `places.googleapis.com` request_count this month → percent of
-  `GeoMonthlyLimit` (5,000 — Text Search Pro free cap). Best-effort; returns null (ring hidden) on any failure.
+  `GeoMonthlyLimit` (10,000). Best-effort; returns null (ring hidden) on any failure.
 
 ## Publishing to My Maps (phase 2)
 

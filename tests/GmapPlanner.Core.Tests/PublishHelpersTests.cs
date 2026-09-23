@@ -8,10 +8,10 @@ namespace GmapPlanner.Core.Tests;
 public class PublishHelpersTests
 {
     [Theory]
-    [InlineData("1-10.kml", "טיול", "טיול — Days 1-10")]
-    [InlineData("1.kml", "טיול", "טיול — Day 1")]
-    [InlineData("11-12.kml", "", "Days 11-12")]
-    [InlineData("3.kml", "", "Day 3")]
+    [InlineData("1-10.kml", "טיול", "טיול (ימים 1-10)")]
+    [InlineData("1.kml", "טיול", "טיול (יום 1)")]
+    [InlineData("11-12.kml", "", "ימים 11-12")]
+    [InlineData("3.kml", "", "יום 3")]
     public void TitleFor_DerivesTheDaySpanFromTheFileName(string file, string trip, string expected)
     {
         Assert.Equal(expected, PublishService.TitleFor(file, trip));

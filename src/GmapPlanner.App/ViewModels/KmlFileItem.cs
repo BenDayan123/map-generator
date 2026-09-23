@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using GmapPlanner.App.Localization;
 
 namespace GmapPlanner.App.ViewModels;
 
@@ -25,7 +26,7 @@ public partial class KmlFileItem : ObservableObject
         var label = System.IO.Path.GetFileNameWithoutExtension(path);
         return new KmlFileItem
         {
-            DayLabel = label.Contains('-') ? $"Days {label}" : $"Day {label}",
+            DayLabel = Loc.F(label.Contains('-') ? "DayLabelMany" : "DayLabelOne", label),
             FileName = System.IO.Path.GetFileName(path),
             SizeText = $"{new FileInfo(path).Length / 1024.0:F0} KB",
             Path = path,

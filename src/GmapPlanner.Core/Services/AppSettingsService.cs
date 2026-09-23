@@ -15,6 +15,9 @@ public record AppSettings
 
     /// <summary>Id (or full URL) of the Google Sheet the Analytics page logs to and reads from.</summary>
     public string AnalyticsSheetId { get; set; } = "";
+
+    /// <summary>UI language: "en" (default) or "he" (Hebrew, right-to-left).</summary>
+    public string Language { get; set; } = "en";
 }
 
 public static class AppSettingsService

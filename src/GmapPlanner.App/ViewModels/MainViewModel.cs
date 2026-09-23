@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GmapPlanner.App.Localization;
 using GmapPlanner.Core;
 using GmapPlanner.Core.Services;
 using GmapPlanner.Core.Services.Gemini;
@@ -24,6 +25,22 @@ public partial class MainViewModel : ViewModelBase
     public enum AppPage { MakeMap, Analytics, Settings }
 
     [ObservableProperty] private AppPage _page = AppPage.MakeMap;
+
+    // --- Language -----------------------------------------------------------
+    // Hebrew flips the whole window right-to-left; strings come from Localization/Strings.cs.
+    [ObservableProperty] private bool _isHebrew;
+    public FlowDirection AppFlowDirection => IsHebrew ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+
+    [RelayCommand]
+    private void ToggleLanguage() => IsHebrew = !IsHebrew;
+
+    partial void OnIsHebrewChanged(bool value)
+    {
+        Loc.SetHebrew(value);
+        OnPropertyChanged(nameof(AppFlowDirection));
+        FormatUsageText();
+        SaveSettings();
+    }
     public bool IsMakeMapPage => Page == AppPage.MakeMap;
     public bool IsAnalyticsPage => Page == AppPage.Analytics;
     public bool IsSettingsPage => Page == AppPage.Settings;
@@ -60,6 +77,7 @@ public partial class MainViewModel : ViewModelBase
     // --- Geocoding usage gauge ----------------------------------------------
     private readonly UsageService _usage = new(Http);
     private bool _usageLoading;
+    private UsageGauge? _lastGauge;
     [ObservableProperty] private bool _hasUsage;
     [ObservableProperty] private Geometry? _usageRingGeometry;
     [ObservableProperty] private string _usageColor = "#388E3C";
@@ -149,28 +167,25 @@ public partial class MainViewModel : ViewModelBase
         if (!SheetsAnalyticsService.IsConfigured(GcpSaJson, AnalyticsSheetId))
         {
             HasAnalytics = false;
-            AnalyticsMessage = "Analytics storage isn't configured. On the Settings page, paste the "
-                + "service-account JSON and set the Analytics Sheet ID, then share the Sheet (Editor) "
-                + "with the service account's email and enable the Google Sheets API.";
+            AnalyticsMessage = Loc.T("AnNotConfigured");
             return;
         }
 
         AnalyticsLoading = true;
-        AnalyticsMessage = "Loading from the Google Sheet…";
+        AnalyticsMessage = Loc.T("AnLoading");
         try
         {
             var rows = await _sheets.FetchRowsAsync(GcpSaJson, AnalyticsSheetId);
             if (rows is null)
             {
                 HasAnalytics = false;
-                AnalyticsMessage = "Couldn't read the Sheet — check that it's shared with the service "
-                    + "account and the Google Sheets API is enabled.";
+                AnalyticsMessage = Loc.T("AnCantRead");
                 return;
             }
             if (rows.Count == 0)
             {
                 HasAnalytics = false;
-                AnalyticsMessage = "No trips logged yet. Generate a map and it'll show up here.";
+                AnalyticsMessage = Loc.T("AnEmpty");
                 return;
             }
 
@@ -181,8 +196,8 @@ public partial class MainViewModel : ViewModelBase
 
             var monthPrefix = DateTime.Now.ToString("yyyy-MM");
             var monthRows = rows.Where(r => r.CreatedAt.StartsWith(monthPrefix)).ToList();
-            AnalyticsThisMonth = $"This month: {monthRows.Count} run(s), "
-                + $"{monthRows.Sum(r => r.Maps)} map(s), {monthRows.Sum(r => r.Places)} place(s).";
+            AnalyticsThisMonth = Loc.F("AnThisMonth",
+                monthRows.Count, monthRows.Sum(r => r.Maps), monthRows.Sum(r => r.Places));
 
             // Bar chart: places per trip for the most recent rows (newest at top).
             AnalyticsBars.Clear();
@@ -201,7 +216,7 @@ public partial class MainViewModel : ViewModelBase
         catch
         {
             HasAnalytics = false;
-            AnalyticsMessage = "Couldn't load analytics right now.";
+            AnalyticsMessage = Loc.T("AnLoadFailed");
         }
         finally
         {
@@ -231,6 +246,55 @@ public partial class MainViewModel : ViewModelBase
 
     public ObservableCollection<KmlFileItem> ResultFiles { get; } = [];
 
+    // --- Trip-name prompt (side panel shown mid-run; KML writing waits on it) ----
+    [ObservableProperty] private bool _isNamePromptOpen;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ApproveTripNameCommand))]
+    private string _proposedTripName = "";
+    private TaskCompletionSource<string>? _tripNameApproval;
+    private CancellationTokenSource? _runCts;
+
+    private Task<string> AskTripNameAsync(string suggested)
+    {
+        ProposedTripName = suggested;
+        _tripNameApproval = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        IsNamePromptOpen = true;
+        return _tripNameApproval.Task;
+    }
+
+    private bool CanApproveTripName() => !string.IsNullOrWhiteSpace(ProposedTripName);
+
+    [RelayCommand(CanExecute = nameof(CanApproveTripName))]
+    private void ApproveTripName()
+    {
+        IsNamePromptOpen = false;
+        _tripNameApproval?.TrySetResult(ProposedTripName.Trim());
+    }
+
+    /// <summary>Aborts the whole run; GenerateAsync then resets the Make Map page.</summary>
+    [RelayCommand]
+    private void CancelTrip()
+    {
+        IsNamePromptOpen = false;
+        _runCts?.Cancel();
+        _tripNameApproval?.TrySetCanceled();
+    }
+
+    /// <summary>"Make another map" on the success screen.</summary>
+    [RelayCommand]
+    private void StartOver() => ResetMakeMapPage();
+
+    private void ResetMakeMapPage()
+    {
+        InputFilePath = "";
+        HasResult = false;
+        ErrorText = "";
+        StatusText = "";
+        Progress = 0;
+        GeocodeWarning = "";
+        ResultFiles.Clear();
+    }
+
     public MainViewModel()
     {
         var settings = AppSettingsService.Load();
@@ -238,6 +302,8 @@ public partial class MainViewModel : ViewModelBase
         _geoApiKey = settings.GeoApiKey;
         _gcpSaJson = settings.GcpSaJson;
         _analyticsSheetId = settings.AnalyticsSheetId;
+        _isHebrew = settings.Language == "he";
+        Loc.SetHebrew(_isHebrew);
         RefreshSetupStatus();
     }
 
@@ -261,6 +327,7 @@ public partial class MainViewModel : ViewModelBase
             GeoApiKey = GeoApiKey,
             GcpSaJson = GcpSaJson,
             AnalyticsSheetId = AnalyticsSheetId,
+            Language = IsHebrew ? "he" : "en",
         });
         RefreshSetupStatus();
     }
@@ -292,7 +359,7 @@ public partial class MainViewModel : ViewModelBase
             var result = SetupBundleService.ApplyFromText(File.ReadAllText(path));
             if (!result.AnythingApplied)
             {
-                SetupMessage = "Nothing loaded — no recognized keys in that file.";
+                SetupMessage = Loc.T("SetupNothing");
                 return;
             }
             // Reload so the fields (and status) reflect what the bundle wrote.
@@ -302,7 +369,7 @@ public partial class MainViewModel : ViewModelBase
             GcpSaJson = settings.GcpSaJson;
             AnalyticsSheetId = settings.AnalyticsSheetId;
             RefreshSetupStatus();
-            SetupMessage = "Loaded: " + string.Join(", ", result.Applied) + ".";
+            SetupMessage = Loc.F("SetupLoaded", string.Join(", ", result.Applied));
             _ = RefreshUsageAsync();
         }
         catch (Exception e)
@@ -320,11 +387,11 @@ public partial class MainViewModel : ViewModelBase
             JsonNode.Parse(text); // reject a non-JSON file before overwriting
             File.WriteAllText(AppConfig.DriveCredentialsFile, text);
             RefreshSetupStatus();
-            SetupMessage = "Saved credentials.json.";
+            SetupMessage = Loc.T("CredsSaved");
         }
         catch (Exception e)
         {
-            SetupMessage = $"Not a valid credentials.json: {e.Message}";
+            SetupMessage = Loc.F("CredsInvalid", e.Message);
         }
     }
 
@@ -347,13 +414,8 @@ public partial class MainViewModel : ViewModelBase
             UsageRingGeometry = Geometry.Parse(UsageRing.ArcGeometry(gauge.Percent));
             UsageColor = UsageRing.GaugeColor(gauge.Percent);
             UsagePercentText = $"{gauge.Percent:0}%";
-            var reset = gauge.ResetDays switch
-            {
-                null => "",
-                1 => "\nresets tomorrow",
-                var d => $"\nresets in {d} days",
-            };
-            UsageSubText = $"Places API · this month\n{gauge.Used:N0} / {gauge.Limit:N0}{reset}";
+            _lastGauge = gauge;
+            FormatUsageText();
             HasUsage = true;
         }
         finally
@@ -362,19 +424,31 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    private void FormatUsageText()
+    {
+        if (_lastGauge is not { } gauge) return;
+        var reset = gauge.ResetDays switch
+        {
+            null => "",
+            1 => "\n" + Loc.T("ResetsTomorrow"),
+            var d => "\n" + Loc.F("ResetsInDays", d),
+        };
+        UsageSubText = Loc.F("UsageSub", gauge.Used.ToString("N0"), gauge.Limit.ToString("N0")) + reset;
+    }
+
     /// <summary>Accepts a dropped or picked itinerary, rejecting the wrong type or an oversized file.</summary>
     public void SetInputFile(string path)
     {
         var ext = Path.GetExtension(path).ToLowerInvariant();
         if (ext is not (".pdf" or ".txt"))
         {
-            ErrorText = "Only PDF or TXT itineraries are supported.";
+            ErrorText = Loc.T("ErrOnlyPdfTxt");
             return;
         }
         var sizeMb = new FileInfo(path).Length / 1e6;
         if (sizeMb > MaxUploadMb)
         {
-            ErrorText = $"File is too large ({sizeMb:F1} MB). Max is {MaxUploadMb} MB.";
+            ErrorText = Loc.F("ErrTooLarge", sizeMb.ToString("F1"), MaxUploadMb);
             return;
         }
         ErrorText = "";
@@ -399,7 +473,7 @@ public partial class MainViewModel : ViewModelBase
         {
             // Stay put: the error banner lives on this page, so jumping to Settings
             // would drop the user there with no explanation.
-            ErrorText = "No Gemini API key configured — add one on the ⚙️ Settings page.";
+            ErrorText = Loc.T("ErrNoGeminiKey");
             return;
         }
 
@@ -408,6 +482,7 @@ public partial class MainViewModel : ViewModelBase
         ErrorText = "";
         Progress = 0;
         ResultFiles.Clear();
+        _runCts = new CancellationTokenSource();
         try
         {
             var gemini = new GeminiExtractionService(Http, GoogleApiKey);
@@ -421,9 +496,11 @@ public partial class MainViewModel : ViewModelBase
                 noGeocode: SkipGeocoding,
                 progress: (step, frac) =>
                 {
-                    StatusText = step;
+                    StatusText = Loc.Progress(step);
                     Progress = frac;
-                });
+                },
+                confirmTripName: AskTripNameAsync,
+                ct: _runCts.Token);
 
             ResultTripName = result.TripName;
             ResultDays = result.Days.ToString();
@@ -445,6 +522,11 @@ public partial class MainViewModel : ViewModelBase
             _ = _sheets.RecordPublishAsync(
                 GcpSaJson, AnalyticsSheetId, result.TripName, mapCount, result.Locations, mapLinks);
         }
+        catch (OperationCanceledException) when (_runCts.IsCancellationRequested)
+        {
+            ResetMakeMapPage();
+            return; // finally still runs; nothing was geocoded worth a gauge refresh
+        }
         catch (Exception e)
         {
             ErrorText = e.Message;
@@ -452,6 +534,11 @@ public partial class MainViewModel : ViewModelBase
         }
         finally
         {
+            _runCts.Dispose();
+            _runCts = null;
+            // A failed extraction can leave the name prompt open with nothing waiting on it.
+            IsNamePromptOpen = false;
+            _tripNameApproval = null;
             IsBusy = false;
         }
 
@@ -479,7 +566,7 @@ public partial class MainViewModel : ViewModelBase
                 notify: NotifyShare,
                 progress: (step, frac) =>
                 {
-                    StatusText = step;
+                    StatusText = Loc.Progress(step);
                     Progress = frac;
                 });
 
@@ -492,21 +579,21 @@ public partial class MainViewModel : ViewModelBase
                 {
                     row.MapUrl = map.ViewUrl;
                     row.SharedWith = map.SharedWith.Count > 0
-                        ? $"Shared with: {string.Join(", ", map.SharedWith)}"
-                        : "Not shared";
+                        ? Loc.F("SharedWith", string.Join(", ", map.SharedWith))
+                        : Loc.T("NotShared");
                 }
             }
 
             var ok = maps.Count(m => m.Error.Length == 0);
             StatusText = "";
             if (ok < maps.Count)
-                ErrorText = $"Published {ok}/{maps.Count} map(s) — see the per-file notes below.";
+                ErrorText = Loc.F("PublishedPartial", ok, maps.Count);
         }
         catch (Exception e)
         {
             // Auth/setup failure before the per-file loop: the KML files still exist.
             StatusText = "";
-            ErrorText = $"Maps couldn't be published (the KML files were still created): {e.Message}";
+            ErrorText = Loc.F("ErrPublish", e.Message);
         }
     }
 
@@ -514,15 +601,15 @@ public partial class MainViewModel : ViewModelBase
     private async Task LogInToGoogleAsync()
     {
         IsLoggingIn = true;
-        LoginStatus = "Opening a browser window — sign in to Google, then return here…";
+        LoginStatus = Loc.T("LoginOpening");
         try
         {
             await MyMapsSession.LoginAsync();
-            LoginStatus = "✅ Signed in to Google. The session is saved for future runs.";
+            LoginStatus = Loc.T("LoginOk");
         }
         catch (Exception e)
         {
-            LoginStatus = $"⚠️ Login failed: {e.Message}";
+            LoginStatus = Loc.F("LoginFailed", e.Message);
         }
         finally
         {
@@ -534,7 +621,7 @@ public partial class MainViewModel : ViewModelBase
     private async Task CheckLoginAsync()
     {
         IsLoggingIn = true;
-        LoginStatus = "Checking the saved Google session…";
+        LoginStatus = Loc.T("LoginChecking");
         try
         {
             await using var session = await MyMapsSession.StartAsync(headless: true);
@@ -544,7 +631,7 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (Exception e)
         {
-            LoginStatus = $"⚠️ Could not check the session: {e.Message}";
+            LoginStatus = Loc.F("LoginCheckFailed", e.Message);
         }
         finally
         {
@@ -574,24 +661,24 @@ public partial class MainViewModel : ViewModelBase
     {
         IsCheckingUpdate = true;
         UpdateAvailable = false;
-        UpdateStatus = "Checking for updates…";
+        UpdateStatus = Loc.T("UpdChecking");
         _pendingUpdate = null;
         try
         {
             var info = await _updater.CheckForUpdateAsync(AppConfig.GithubRepo);
-            if (info is null) { UpdateStatus = "Couldn't check for updates — check your connection."; return; }
-            if (!info.HasUpdate) { UpdateStatus = $"You're on the latest version (v{info.Current})."; return; }
+            if (info is null) { UpdateStatus = Loc.T("UpdNoConnection"); return; }
+            if (!info.HasUpdate) { UpdateStatus = Loc.F("UpdLatest", info.Current); return; }
 
             _pendingUpdate = info;
             if (info.HasAsset && UpdateService.IsSelfUpdateSupported)
             {
                 UpdateAvailable = true;
-                UpdateStatus = $"Version {info.Latest} is available.";
+                UpdateStatus = Loc.F("UpdAvailable", info.Latest);
             }
             else
             {
                 // Reachable release but no installer for this OS — point at the page instead.
-                UpdateStatus = $"Version {info.Latest} is available — download it from the releases page.";
+                UpdateStatus = Loc.F("UpdAvailableManual", info.Latest);
             }
         }
         finally
@@ -609,18 +696,18 @@ public partial class MainViewModel : ViewModelBase
         IsCheckingUpdate = true;
         try
         {
-            UpdateStatus = "Downloading update…";
+            UpdateStatus = Loc.T("UpdDownloading");
             var path = await _updater.DownloadAssetAsync(
                 info.AssetUrl, info.AssetName,
-                progress: p => UpdateStatus = $"Downloading update… {p:P0}");
-            UpdateStatus = "Starting the installer…";
+                progress: p => UpdateStatus = Loc.F("UpdDownloadingPct", p.ToString("P0")));
+            UpdateStatus = Loc.T("UpdInstalling");
             // On Windows this quits the app so the installer can replace the files, then
             // relaunches the new version; on macOS it opens the .dmg for a drag-install.
             UpdateService.ApplyUpdate(path);
         }
         catch (Exception e)
         {
-            UpdateStatus = $"Update failed: {e.Message}";
+            UpdateStatus = Loc.F("UpdFailed", e.Message);
         }
         finally
         {
@@ -648,9 +735,9 @@ public partial class MainViewModel : ViewModelBase
         foreach (var f in ResultFiles)
         {
             try { File.Copy(f.Path, Path.Combine(folder, f.FileName), overwrite: true); }
-            catch (Exception e) { ErrorText = $"Couldn't save {f.FileName}: {e.Message}"; return; }
+            catch (Exception e) { ErrorText = Loc.F("ErrSaveFile", f.FileName, e.Message); return; }
         }
-        StatusText = $"Saved {ResultFiles.Count} file(s) to {folder}";
+        StatusText = Loc.F("SavedFiles", ResultFiles.Count, folder);
         try
         {
             // Best-effort reveal, like the Python app's reveal_in_file_manager.

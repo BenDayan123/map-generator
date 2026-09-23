@@ -62,9 +62,13 @@ public class GeminiExtractionService(HttpClient http, string apiKey, string? pro
         }
         """;
 
-    public async Task<Trip> ExtractItineraryAsync(string filePath, CancellationToken ct = default)
+    public async Task<Trip> ExtractItineraryAsync(string filePath, CancellationToken ct = default) =>
+        await ExtractItineraryAsync(await BuildDocumentPartAsync(filePath, ct), ct);
+
+    /// <summary>Extracts from an already-built document part (see <see cref="BuildDocumentPartAsync"/>).</summary>
+    public async Task<Trip> ExtractItineraryAsync(JsonObject documentPart, CancellationToken ct = default)
     {
-        var parts = await BuildContentPartsAsync(filePath, ct);
+        List<JsonObject> parts = [new JsonObject { ["text"] = PromptText }, documentPart];
 
         PipelineException last = new("Gemini API (location extraction) was never called.");
         for (var attempt = 0; attempt < Attempts; attempt++)
@@ -81,9 +85,55 @@ public class GeminiExtractionService(HttpClient http, string apiKey, string? pro
         throw last;
     }
 
-    private async Task<List<JsonObject>> BuildContentPartsAsync(string filePath, CancellationToken ct)
+    /// <summary>
+    /// Asks Gemini for a short Hebrew trip name, from the file name when it is meaningful,
+    /// else from the document body. Best-effort: any failure returns the file-name stem.
+    /// </summary>
+    public async Task<string> SuggestTripNameAsync(JsonObject documentPart, string fileName, CancellationToken ct = default)
     {
-        var promptPart = new JsonObject { ["text"] = PromptText };
+        var fallback = Path.GetFileNameWithoutExtension(fileName);
+        var body = new JsonObject
+        {
+            ["contents"] = new JsonArray(new JsonObject
+            {
+                ["parts"] = new JsonArray(
+                    new JsonObject { ["text"] = Prompt.TripNamePrompt.For(fileName) },
+                    documentPart.DeepClone()),
+            }),
+            ["generationConfig"] = new JsonObject
+            {
+                ["temperature"] = 0,
+                ["responseMimeType"] = "application/json",
+                ["responseSchema"] = JsonNode.Parse("""
+                    { "type": "OBJECT", "required": ["trip_name"], "properties": { "trip_name": { "type": "STRING" } } }
+                    """),
+            },
+        };
+        try
+        {
+            using var response = await http.PostAsync(
+                $"{BaseUrl}/v1beta/models/{AppConfig.GeminiModel}:generateContent?key={apiKey}",
+                new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json"),
+                ct);
+            if (!response.IsSuccessStatusCode) return fallback;
+            var envelope = await response.Content.ReadFromJsonAsync(
+                GmapPlannerJsonContext.Default.GenerateContentResponse, ct);
+            var text = envelope?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text;
+            var name = text is null ? null : JsonNode.Parse(text)?["trip_name"]?.GetValue<string>()?.Trim();
+            return string.IsNullOrEmpty(name) ? fallback : name;
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            return fallback;
+        }
+    }
+
+    /// <summary>
+    /// The itinerary as a Gemini content part: inline text for .txt, otherwise a Files API
+    /// upload. Built once per run so extraction and the name suggestion share one upload.
+    /// </summary>
+    public async Task<JsonObject> BuildDocumentPartAsync(string filePath, CancellationToken ct = default)
+    {
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
 
         if (ext == ".txt")
@@ -97,18 +147,14 @@ public class GeminiExtractionService(HttpClient http, string apiKey, string? pro
             {
                 throw new PipelineException($"Failed to read '{filePath}': {e.Message}", e);
             }
-            return [promptPart, new JsonObject { ["text"] = text }];
+            return new JsonObject { ["text"] = text };
         }
 
         var (uri, mimeType) = await UploadFileAsync(filePath, ct);
-        return
-        [
-            promptPart,
-            new JsonObject
-            {
-                ["file_data"] = new JsonObject { ["mime_type"] = mimeType, ["file_uri"] = uri },
-            },
-        ];
+        return new JsonObject
+        {
+            ["file_data"] = new JsonObject { ["mime_type"] = mimeType, ["file_uri"] = uri },
+        };
     }
 
     private async Task<Trip> ExtractOnceAsync(List<JsonObject> parts, CancellationToken ct)

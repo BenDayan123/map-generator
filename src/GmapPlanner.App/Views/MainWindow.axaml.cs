@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using GmapPlanner.App.Localization;
 using GmapPlanner.App.ViewModels;
 
 namespace GmapPlanner.App.Views;
@@ -13,6 +14,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         BrowseInputButton.Click += async (_, _) => await SafeAsync(BrowseInputFileAsync);
+        ReplaceInputButton.Click += async (_, _) => await SafeAsync(BrowseInputFileAsync);
         DownloadButton.Click += async (_, _) => await SafeAsync(DownloadKmlFilesAsync);
         SetupBundleButton.Click += async (_, _) => await SafeAsync(BrowseSetupBundleAsync);
         CredentialsButton.Click += async (_, _) => await SafeAsync(BrowseCredentialsAsync);
@@ -25,6 +27,8 @@ public partial class MainWindow : Window
         DragDrop.SetAllowDrop(DropZone, true);
         DropZone.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         DropZone.AddHandler(DragDrop.DropEvent, OnDrop);
+        DropZone.AddHandler(DragDrop.DragEnterEvent, (_, _) => DropZone.Classes.Set("dragOver", true));
+        DropZone.AddHandler(DragDrop.DragLeaveEvent, (_, _) => DropZone.Classes.Set("dragOver", false));
 
         // Drop a file straight onto the Settings pickers instead of browsing for it.
         EnableFileDrop(SetupBundleButton, (vm, p) => vm.ApplySetupBundleFile(p));
@@ -96,8 +100,15 @@ public partial class MainWindow : Window
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
+        DropZone.Classes.Set("dragOver", false);
         if (DataContext is not MainViewModel vm) return;
-        var path = e.Data.GetFiles()?.FirstOrDefault()?.TryGetLocalPath();
+        var files = e.Data.GetFiles()?.ToList() ?? [];
+        if (files.Count > 1)
+        {
+            vm.ErrorText = Loc.T("ErrOneFile");
+            return;
+        }
+        var path = files.FirstOrDefault()?.TryGetLocalPath();
         if (path is not null) vm.SetInputFile(path);
     }
 
