@@ -171,9 +171,15 @@ public class UpdateService(HttpClient http)
         MNT="$(mktemp -d)"
         hdiutil attach {{Quote(dmgPath)}} -nobrowse -quiet -mountpoint "$MNT" || { open {{Quote(dmgPath)}}; exit 1; }
         NEW="$(find "$MNT" -maxdepth 1 -name '*.app' | head -n 1)"
-        if [ -n "$NEW" ]; then
+        rm -rf {{Quote(bundlePath + ".new")}}
+        if [ -n "$NEW" ] && ditto "$NEW" {{Quote(bundlePath + ".new")}}; then
           rm -rf {{Quote(bundlePath)}}
-          ditto "$NEW" {{Quote(bundlePath)}}
+          mv {{Quote(bundlePath + ".new")}} {{Quote(bundlePath)}}
+        else
+          rm -rf {{Quote(bundlePath + ".new")}}
+          hdiutil detach "$MNT" -quiet
+          open {{Quote(dmgPath)}}
+          exit 1
         fi
         hdiutil detach "$MNT" -quiet
         open {{Quote(bundlePath)}}

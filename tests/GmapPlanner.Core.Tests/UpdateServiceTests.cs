@@ -40,12 +40,14 @@ public class UpdateServiceTests
         Assert.Contains("while kill -0 4242", s);
         // Paths are single-quoted, with embedded quotes escaped, so spaces/quotes are safe.
         Assert.Contains("'/tmp/it'\\''s.dmg'", s);
-        Assert.Contains("'/Applications/My Maps Generator.app'", s);
         Assert.Contains("hdiutil attach", s);
-        Assert.Contains("ditto", s);
+        // ditto targets the .new location, so a failed copy keeps the old app intact.
+        Assert.Contains("'/Applications/My Maps Generator.app.new'", s);
+        // mv into place comes after successful ditto.
+        Assert.True(s.IndexOf("ditto \"$NEW\"", StringComparison.Ordinal) < s.IndexOf("mv ", StringComparison.Ordinal));
         Assert.Contains("hdiutil detach", s);
         Assert.Contains("open ", s);
-        // Replace = delete the old bundle first, so files the new version dropped don't linger.
-        Assert.True(s.IndexOf("rm -rf", StringComparison.Ordinal) < s.IndexOf("ditto", StringComparison.Ordinal));
+        // The script has a dmg fallback if ditto fails.
+        Assert.Contains("open '/tmp/it'\\''s.dmg'", s);
     }
 }
