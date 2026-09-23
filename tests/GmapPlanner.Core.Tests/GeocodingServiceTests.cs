@@ -1,3 +1,6 @@
+using System.Net;
+using System.Text;
+using System.Text.Json.Nodes;
 using GmapPlanner.Core.Services;
 
 namespace GmapPlanner.Core.Tests;
@@ -63,4 +66,50 @@ public class GeocodingServiceTests
     [Fact]
     public void NameTokens_LowercasesAndSplitsOnPunctuation() =>
         Assert.Equal(new HashSet<string> { "senso", "ji", "temple" }, GeocodingService.NameTokens("Senso-ji Temple!"));
+
+    [Fact]
+    public async Task GeocodePlace_RequestsSeveralEnglishCandidatesNearGeminiAndPicksTheNameMatch()
+    {
+        const string response = """
+            {"places":[
+              {"id":"a","displayName":{"text":"Nike Shibuya Scramble Square"},"location":{"latitude":35.6585,"longitude":139.7023}},
+              {"id":"b","displayName":{"text":"Nike Shibuya"},"location":{"latitude":35.6640,"longitude":139.6990}}
+            ]}
+            """;
+        var handler = new CapturingHandler(response);
+        var service = new GeocodingService(new HttpClient(handler), "fake-key");
+
+        var result = await service.GeocodePlaceAsync("Nike Shibuya, Tokyo", biasLat: 35.66, biasLng: 139.70);
+
+        Assert.Equal((35.6640, 139.6990), result);
+        var body = JsonNode.Parse(handler.Body!)!;
+        Assert.Equal("Nike Shibuya, Tokyo", body["textQuery"]!.GetValue<string>());
+        Assert.Equal(5, body["pageSize"]!.GetValue<int>());
+        Assert.Equal("en", body["languageCode"]!.GetValue<string>());
+        Assert.Equal(35.66, body["locationBias"]!["circle"]!["center"]!["latitude"]!.GetValue<double>());
+    }
+
+    [Fact]
+    public async Task GeocodePlace_WithoutCoords_SendsNoLocationBias()
+    {
+        var handler = new CapturingHandler("""{"places":[]}""");
+        var service = new GeocodingService(new HttpClient(handler), "fake-key");
+
+        Assert.Null(await service.GeocodePlaceAsync("Nike Shibuya"));
+        Assert.Null(JsonNode.Parse(handler.Body!)!["locationBias"]);
+    }
+
+    private sealed class CapturingHandler(string responseBody) : HttpMessageHandler
+    {
+        public string? Body { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Body = await request.Content!.ReadAsStringAsync(ct);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(responseBody, Encoding.UTF8, "application/json"),
+            };
+        }
+    }
 }
