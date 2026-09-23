@@ -69,7 +69,11 @@ xattr -cr "$APP"
 find "$APP/Contents/MacOS" -type f ! -path "$APP/Contents/MacOS/$EXE" -print0 |
   while IFS= read -r -d '' f; do codesign --force --sign - "$f"; done
 codesign --force --sign - "$APP/Contents/MacOS/$EXE"
-codesign --force --sign - "$APP"
+# --deep here (only here): a plain bundle sign tries to validate loose executables under
+# .playwright (no Info.plist, not a .framework/.xpc) as a nested "bundle" and fails with
+# "bundle format unrecognized, invalid, or unsuitable"; --deep re-signs each nested Mach-O
+# directly instead of doing that bundle-shaped discovery.
+codesign --force --deep --sign - "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 
 # DMG layout: the app next to an /Applications shortcut, so the user just drags to install.
