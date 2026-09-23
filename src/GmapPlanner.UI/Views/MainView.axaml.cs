@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Platform.Storage;
 using GmapPlanner.App.Localization;
 using GmapPlanner.App.ViewModels;
@@ -52,6 +53,12 @@ public partial class MainView : UserControl
         WireHoldReveal(GeminiKeyEye, GeminiKeyBox);
         WireHoldReveal(GeoKeyEye, GeoKeyBox);
 
+        // Phone drawer: the menu button opens it; the scrim or picking a page closes it.
+        MenuButton.Click += (_, _) => SetDrawerOpen(true);
+        Scrim.PointerPressed += (_, _) => SetDrawerOpen(false);
+        foreach (var nav in Sidebar.GetLogicalDescendants().OfType<Button>().Where(b => b.Classes.Contains("nav")))
+            nav.Click += (_, _) => SetDrawerOpen(false);
+
         // Load the usage gauge once the view is up, on the UI thread so binding is safe.
         Loaded += async (_, _) =>
         {
@@ -64,11 +71,29 @@ public partial class MainView : UserControl
     /// <summary>The hosting window's (or browser's) storage provider, for the file/folder pickers.</summary>
     private IStorageProvider Storage => TopLevel.GetTopLevel(this)!.StorageProvider;
 
-    /// <summary>Cap the resizable sidebar at a third of the view; clamp if the view shrinks.</summary>
+    /// <summary>Below this width (phones) the sidebar becomes a drawer behind a top bar.</summary>
+    private const double CompactWidth = 760;
+
+    private void SetDrawerOpen(bool open) => RootGrid.Classes.Set("drawerOpen", open);
+
+    /// <summary>
+    /// Switch to the phone layout under <see cref="CompactWidth"/>; otherwise cap the
+    /// resizable sidebar at a third of the view and clamp it if the view shrinks.
+    /// </summary>
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         base.OnSizeChanged(e);
         var sidebar = RootGrid.ColumnDefinitions[0];
+        var compact = e.NewSize.Width < CompactWidth;
+        if (compact != RootGrid.Classes.Contains("compact"))
+        {
+            RootGrid.Classes.Set("compact", compact);
+            SetDrawerOpen(false);
+            // The drawer overlays the page, so the sidebar column collapses to nothing.
+            sidebar.MinWidth = compact ? 0 : 220;
+            sidebar.Width = new Avalonia.Controls.GridLength(compact ? 0 : 280);
+        }
+        if (compact) return;
         var max = Math.Max(sidebar.MinWidth, e.NewSize.Width / 3);
         sidebar.MaxWidth = max;
         if (sidebar.Width.IsAbsolute && sidebar.Width.Value > max)

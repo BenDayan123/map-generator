@@ -124,6 +124,12 @@ output folder, the service-account JSON for the usage ring, a credentials.json p
 and a green/⚪ setup-status checklist. The two pages are `IsVisible` toggles on
 `IsMakeMapPage`/`IsSettingsPage`, not a nav framework.
 
+**Phone layout.** Under 760px wide (`MainView.CompactWidth`) code-behind sets the `compact` class on
+`RootGrid`: the sidebar becomes a slide-over drawer (`drawerOpen`, opened by the top bar's menu
+button, closed by the scrim or a nav pick) and `UserControl.Styles` in `MainView.axaml` tighten the
+rest. Gotcha: a local attribute outranks a style setter in Avalonia, so anything `.compact` changes
+must get its wide default from a style too, not an attribute on the element.
+
 **Languages (English / Hebrew).** A button at the top of the sidebar toggles `MainViewModel.IsHebrew` (shared `GmapPlanner.UI`, so desktop and browser both get it), which
 flips the window's `FlowDirection` to RTL and is saved as `AppSettings.Language`. Every UI string
 lives in `GmapPlanner.UI/Localization/Strings.cs` (key → English, Hebrew); XAML uses `{l:T Key}` and code uses

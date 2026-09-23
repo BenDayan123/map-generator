@@ -6,6 +6,8 @@ internal static class Strings
     public static readonly Dictionary<string, (string En, string He)> Table = new()
     {
         ["NavMakeMap"] = ("Make a map", "יצירת מפה"),
+        ["AppName"] = ("Map Planner", "מתכנן המפות"),
+        ["OpenMenu"] = ("Open menu", "פתיחת תפריט"),
         ["NavAnalytics"] = ("Analytics", "סטטיסטיקות"),
         ["NavSettings"] = ("Settings", "הגדרות"),
         ["ApiUsage"] = ("API USAGE", "שימוש ב-API"),
