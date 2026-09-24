@@ -19,6 +19,59 @@ cross-platform desktop app.
 5. **Track (optional)** — every generated trip is logged to a Google Sheet, and the
    in-app Analytics page reads it back (trip counts, map counts, place counts, this month).
 
+## Install
+
+Download the latest version from the
+[Releases page](https://github.com/BenDayan123/map-generator/releases/latest).
+
+### Windows
+
+Run **MyMapsGenerator-Setup-win-x64.exe**. If SmartScreen warns, click **More info → Run anyway**.
+
+### macOS (Apple Silicon)
+
+**Before you start**
+
+1. Check your Mac has an Apple chip: Apple menu  → **About This Mac** — "Chip" must say
+   **Apple M1, M2, M3 or M4** (Intel Macs aren't supported).
+2. Use an **administrator** account (the installer copies the app into Applications).
+3. Install **Google Chrome** (or Microsoft Edge) — needed only to publish to Google My Maps,
+   since the Google sign-in runs through it.
+
+**Install (about 1 minute, no security warnings)**
+
+4. Open **Terminal** (⌘ Space → type `Terminal` → Return).
+5. Paste this line and press Return:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/BenDayan123/map-generator/main/build/install-macos.sh | bash
+   ```
+
+6. It downloads the latest version (~300 MB), installs **My Maps Generator** into
+   Applications, and opens it. You can close Terminal.
+7. From now on open it like any app — from Applications or ⌘ Space → "My Maps Generator".
+
+**First-time setup inside the app**
+
+8. **Settings** → enter your API keys (or drop in your one-file setup `.json`).
+9. To publish to My Maps: turn on **Create my maps online** → **Sign in to Google** → sign
+   in once in the Chrome window that opens.
+10. The first publish may take an extra minute while it downloads a browser component (~150 MB).
+
+**Updating:** Settings → **Check for updates** → **Install** — the app closes, updates itself,
+and reopens. Re-running the Terminal line also reinstalls the latest version.
+
+**If something goes wrong**
+
+- *"is damaged and can't be opened"* — that's an old v1.0.x download. Trash it and repeat step 5.
+- *The Terminal can't write to Applications* — switch to an admin account and repeat step 5.
+- *The app closes right away* — Finder → Go → Go to Folder… →
+  `~/Library/Application Support/GmapPlanner/` and send the `last_error.log` file there.
+
+Prefer the `.dmg` from the Releases page? It works too, but because the app is free and not
+registered with Apple, macOS blocks the first launch: go to **System Settings → Privacy &
+Security → Open Anyway**. Full guide: [docs/macos-install.md](docs/macos-install.md).
+
 ## Stack
 
 - **.NET 8**, **Avalonia UI** (MVVM, compiled bindings)
@@ -27,7 +80,7 @@ cross-platform desktop app.
 - **SharpKml** for KML generation
 - **Playwright** for My Maps automation (browser not bundled — fetched on first publish)
 - **Google Drive API** for sharing, **Google Sheets API** for analytics
-- Self-contained, trimmed, single-file publish for `win-x64` and `osx-arm64`
+- Self-contained, trimmed publish: single-file `win-x64`, ad-hoc-signed `.app` for `osx-arm64`
 
 ## Getting started
 
