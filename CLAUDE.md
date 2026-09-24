@@ -433,3 +433,9 @@ repo is outstanding.
   failure, `RecordPublishAsync` swallows so logging never breaks a run. The Sheet must be
   shared (Editor) with the SA email and the Sheets API enabled. No hosted Sheet fallback —
   a local `analytics.json` is *not* kept; the Sheet is the single source.
+- **Analytics page** — an All time / Last 30 days segmented filter re-slices the loaded rows (no
+  refetch) through `Core/Services/AnalyticsStats` (filter, totals, monthly/daily buckets with gaps
+  kept, biggest, recent — unit-tested). The page shows 4 icon stat tiles, a hand-drawn column chart
+  (`UniformGrid` of bars pre-scaled in the VM, one hue, per-column tooltip), biggest-trip bars
+  (`ProgressBar`), and a recent-trips list with Open-map links. Chart day labels use negative side
+  margins (and `ClipToBounds="False"`) so they can overflow their narrow column.

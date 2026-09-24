@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
 using Avalonia.Media;
@@ -150,13 +151,25 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private bool _hasAnalytics;              // rows loaded and shown
     [ObservableProperty] private bool _analyticsLoading;
     [ObservableProperty] private string _analyticsMessage = "";   // empty-state / config / error text
-    [ObservableProperty] private string _totalTrips = "0";
-    [ObservableProperty] private string _totalMaps = "0";
-    [ObservableProperty] private string _totalPlaces = "0";
-    [ObservableProperty] private string _analyticsThisMonth = "";
+
+    // Time filter: all time / last 30 days. Switching re-slices the loaded rows, no refetch.
+    private List<AnalyticsRow> _analyticsRows = [];
+    [ObservableProperty] private bool _isRangeAllTime = true;
+    [ObservableProperty] private bool _hasRangeData;
+    [ObservableProperty] private string _statTrips = "0";
+    [ObservableProperty] private string _statMaps = "0";
+    [ObservableProperty] private string _statPlaces = "0";
+    [ObservableProperty] private string _statAvgPlaces = "0";
+    [ObservableProperty] private string _timelineTitle = "";
+    [ObservableProperty] private string _timelineMax = "";
 
     public bool HasAnalyticsSheetLink => AnalyticsSheet.IsConfigured(GcpSaJson, AnalyticsSheetId);
-    public ObservableCollection<AnalyticsBar> AnalyticsBars { get; } = [];
+    public ObservableCollection<AnalyticsColumn> TimelineColumns { get; } = [];
+    public ObservableCollection<AnalyticsTopTrip> TopTrips { get; } = [];
+    public ObservableCollection<AnalyticsRecentTrip> RecentTrips { get; } = [];
+
+    /// <summary>Pixel height of the over-time chart's plot area.</summary>
+    private const double TimelineHeight = 150;
 
     /// <summary>
     /// Loads the analytics page from the Google Sheet. Best-effort: an unconfigured or
@@ -190,27 +203,8 @@ public partial class MainViewModel : ViewModelBase
                 return;
             }
 
-            TotalTrips = rows.Select(r => r.TripName).Distinct(StringComparer.OrdinalIgnoreCase).Count().ToString();
-            TotalMaps = rows.Sum(r => r.Maps).ToString();
-            TotalPlaces = rows.Sum(r => r.Places).ToString();
-
-            var monthPrefix = DateTime.Now.ToString("yyyy-MM");
-            var monthRows = rows.Where(r => r.CreatedAt.StartsWith(monthPrefix)).ToList();
-            AnalyticsThisMonth = Loc.F("AnThisMonth",
-                monthRows.Count, monthRows.Sum(r => r.Maps), monthRows.Sum(r => r.Places));
-
-            // Bar chart: places per trip for the most recent rows (newest at top).
-            AnalyticsBars.Clear();
-            var recent = rows.AsEnumerable().Reverse().Take(8).ToList();
-            var max = Math.Max(1, recent.Max(r => r.Places));
-            foreach (var r in recent)
-                AnalyticsBars.Add(new AnalyticsBar
-                {
-                    Label = string.IsNullOrWhiteSpace(r.TripName) ? r.CreatedAt : r.TripName,
-                    ValueText = r.Places.ToString(),
-                    BarWidth = 20 + 240.0 * r.Places / max, // min stub so tiny values stay visible
-                });
-
+            _analyticsRows = rows.ToList();
+            ApplyAnalyticsRange();
             HasAnalytics = true;
         }
         catch
@@ -222,6 +216,83 @@ public partial class MainViewModel : ViewModelBase
         {
             AnalyticsLoading = false;
         }
+    }
+
+    [RelayCommand]
+    private void SetAnalyticsRange(string range)
+    {
+        IsRangeAllTime = range == "all";
+        ApplyAnalyticsRange();
+    }
+
+    /// <summary>Recomputes the tiles and charts for the selected range from the loaded rows.</summary>
+    private void ApplyAnalyticsRange()
+    {
+        var range = IsRangeAllTime ? AnalyticsRange.AllTime : AnalyticsRange.Last30Days;
+        var now = DateTime.Now;
+        var rows = AnalyticsStats.Filter(_analyticsRows, range, now);
+        HasRangeData = rows.Count > 0;
+
+        var sum = AnalyticsStats.Summarize(rows);
+        StatTrips = sum.Trips.ToString(CultureInfo.InvariantCulture);
+        StatMaps = sum.Maps.ToString(CultureInfo.InvariantCulture);
+        StatPlaces = sum.Places.ToString(CultureInfo.InvariantCulture);
+        StatAvgPlaces = sum.AvgPlaces.ToString("0.#", CultureInfo.InvariantCulture);
+
+        // Over time: months (all time) or days (last 30). Days label every 5th column so
+        // 30 labels don't collide; every column still has its own tooltip.
+        var buckets = AnalyticsStats.Timeline(rows, range, now);
+        var max = Math.Max(1, buckets.Max(b => b.Places));
+        TimelineTitle = Loc.T(range == AnalyticsRange.AllTime ? "AnPlacesPerMonth" : "AnPlacesPerDay");
+        TimelineMax = max.ToString(CultureInfo.InvariantCulture);
+        TimelineColumns.Clear();
+        for (var i = 0; i < buckets.Count; i++)
+        {
+            var b = buckets[i];
+            var period = range == AnalyticsRange.AllTime ? b.Start.ToString("MM/yyyy", CultureInfo.InvariantCulture)
+                                                         : b.Start.ToString("dd/MM", CultureInfo.InvariantCulture);
+            var labeled = range == AnalyticsRange.AllTime || (buckets.Count - 1 - i) % 5 == 0;
+            TimelineColumns.Add(new AnalyticsColumn
+            {
+                Label = labeled ? (range == AnalyticsRange.AllTime ? b.Start.ToString("MM/yy", CultureInfo.InvariantCulture) : period) : "",
+                // A 3px stub keeps non-empty buckets visible; empty ones stay flat on the baseline.
+                BarHeight = b.Places == 0 ? 0 : Math.Max(3, TimelineHeight * b.Places / max),
+                Tip = Loc.F("AnColumnTip", period, b.Trips, b.Maps, b.Places),
+            });
+        }
+
+        TopTrips.Clear();
+        var top = AnalyticsStats.Biggest(rows, 6);
+        var topMax = Math.Max(1, top.Count == 0 ? 1 : top[0].Places);
+        foreach (var r in top)
+            TopTrips.Add(new AnalyticsTopTrip
+            {
+                Name = TripLabel(r),
+                DateText = DateText(r),
+                Places = r.Places,
+                Fraction = (double)r.Places / topMax,
+            });
+
+        RecentTrips.Clear();
+        foreach (var r in AnalyticsStats.Recent(rows, 8))
+            RecentTrips.Add(new AnalyticsRecentTrip
+            {
+                Name = TripLabel(r),
+                DateText = DateText(r),
+                Maps = r.Maps,
+                Places = r.Places,
+                Link = r.MapLinks.FirstOrDefault(l => l.StartsWith("http", StringComparison.OrdinalIgnoreCase)) ?? "",
+            });
+
+        static string TripLabel(AnalyticsRow r) => string.IsNullOrWhiteSpace(r.TripName) ? r.CreatedAt : r.TripName;
+        static string DateText(AnalyticsRow r) =>
+            AnalyticsStats.ParseDate(r.CreatedAt)?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? r.CreatedAt;
+    }
+
+    [RelayCommand]
+    private void OpenTripMap(string? url)
+    {
+        if (!string.IsNullOrEmpty(url)) _platform.OpenUrl(url);
     }
 
     [RelayCommand]

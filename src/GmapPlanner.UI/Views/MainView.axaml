@@ -117,6 +117,13 @@
             <Setter Property="Grid.Column" Value="0" />
             <Setter Property="Grid.Row" Value="1" />
         </Style>
+        <!-- Analytics stat tiles: 4 across, 2x2 on a narrow page. -->
+        <Style Selector="UniformGrid.kpis">
+            <Setter Property="Columns" Value="4" />
+        </Style>
+        <Style Selector="Grid#RootGrid.narrowPage UniformGrid.kpis">
+            <Setter Property="Columns" Value="2" />
+        </Style>
         <!-- Per-map status pill on the result rows. -->
         <Style Selector="Border.mapBadge">
             <Setter Property="CornerRadius" Value="10" />
@@ -646,74 +653,209 @@
                 </StackPanel>
 
                 <!-- ======================== ANALYTICS ======================== -->
-                <StackPanel Spacing="18" IsVisible="{Binding IsAnalyticsPage}">
-                    <StackPanel Orientation="Horizontal" Spacing="11">
-                        <Path Classes="icon" Width="26" Height="26" VerticalAlignment="Center"
-                              StrokeThickness="1.6" Stroke="#3B82F6" Data="{StaticResource IconChart}" />
-                        <TextBlock Classes="h1" Text="{l:T NavAnalytics}" VerticalAlignment="Center" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Classes="caption" FontSize="13.5" VerticalAlignment="Center"
-                                   Text="{l:T AnalyticsSub}" />
-                        <Button Classes="nav" Padding="8,3" Command="{Binding OpenAnalyticsSheetCommand}"
-                                IsVisible="{Binding HasAnalyticsSheetLink}">
-                            <TextBlock Text="{l:T OpenSheet}" FontSize="12.5" />
+                <StackPanel Spacing="16" MaxWidth="780" IsVisible="{Binding IsAnalyticsPage}">
+                    <DockPanel Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right" VerticalAlignment="Center" Padding="12,7"
+                                Command="{Binding OpenAnalyticsSheetCommand}" IsVisible="{Binding HasAnalyticsSheetLink}">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <Path Classes="icon" Width="14" Height="14" VerticalAlignment="Center" Data="{StaticResource IconExternal}" />
+                                <TextBlock Text="{l:T OpenSheet}" FontSize="13" VerticalAlignment="Center" />
+                            </StackPanel>
                         </Button>
-                    </StackPanel>
+                        <StackPanel Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="11">
+                                <Path Classes="icon" Width="26" Height="26" VerticalAlignment="Center"
+                                      StrokeThickness="1.6" Stroke="#3B82F6" Data="{StaticResource IconChart}" />
+                                <TextBlock Classes="h1" Text="{l:T NavAnalytics}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Classes="caption" FontSize="14" Text="{l:T AnalyticsSub}" />
+                        </StackPanel>
+                    </DockPanel>
 
                     <!-- Empty / not-configured / loading state -->
-                    <Border Classes="card" IsVisible="{Binding !HasAnalytics}">
-                        <TextBlock Classes="caption" TextAlignment="Center" TextWrapping="Wrap"
-                                   Text="{Binding AnalyticsMessage}" />
+                    <Border Classes="card" Padding="24" IsVisible="{Binding !HasAnalytics}">
+                        <StackPanel Spacing="10" HorizontalAlignment="Center">
+                            <Arc Classes="spinner" Width="18" Height="18" HorizontalAlignment="Center"
+                                 StartAngle="0" SweepAngle="270" Stroke="#60A5FA" StrokeThickness="2" StrokeLineCap="Round"
+                                 IsVisible="{Binding AnalyticsLoading}" />
+                            <Path Classes="icon" Width="26" Height="26" HorizontalAlignment="Center" Stroke="{StaticResource MutedBrush}"
+                                  Data="{StaticResource IconChart}" IsVisible="{Binding !AnalyticsLoading}" />
+                            <TextBlock Classes="caption" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="460"
+                                       Text="{Binding AnalyticsMessage}" />
+                        </StackPanel>
                     </Border>
 
-                    <StackPanel Spacing="18" IsVisible="{Binding HasAnalytics}">
-                        <!-- Summary tiles -->
-                        <Grid ColumnDefinitions="*,*,*">
-                            <Border Grid.Column="0" Classes="card" Margin="0,0,8,0">
-                                <StackPanel>
-                                    <TextBlock Classes="metricLabel" Text="{l:T Trips}" />
-                                    <TextBlock Classes="metricValue" Text="{Binding TotalTrips}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Grid.Column="1" Classes="card" Margin="4,0">
-                                <StackPanel>
-                                    <TextBlock Classes="metricLabel" Text="{l:T Maps}" />
-                                    <TextBlock Classes="metricValue" Text="{Binding TotalMaps}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Grid.Column="2" Classes="card" Margin="8,0,0,0">
-                                <StackPanel>
-                                    <TextBlock Classes="metricLabel" Text="{l:T Places}" />
-                                    <TextBlock Classes="metricValue" Text="{Binding TotalPlaces}" />
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-
-                        <TextBlock Classes="caption" Text="{Binding AnalyticsThisMonth}" />
-
-                        <!-- Places-per-trip bar chart -->
-                        <Border Classes="card">
-                            <StackPanel Spacing="10">
-                                <TextBlock Classes="sideHeader" Text="{l:T PlacesPerTrip}" />
-                                <ItemsControl ItemsSource="{Binding AnalyticsBars}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:AnalyticsBar">
-                                            <Grid ColumnDefinitions="130,*,Auto" Margin="0,0,0,9">
-                                                <TextBlock Grid.Column="0" Text="{Binding Label}" Classes="caption"
-                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                                           Margin="0,0,10,0" />
-                                                <Border Grid.Column="1" Height="18" CornerRadius="5"
-                                                        Background="{StaticResource AccentBrush}"
-                                                        Width="{Binding BarWidth}" HorizontalAlignment="Left" />
-                                                <TextBlock Grid.Column="2" Text="{Binding ValueText}" FontWeight="SemiBold"
-                                                           VerticalAlignment="Center" Margin="10,0,0,0" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                    <StackPanel Spacing="16" IsVisible="{Binding HasAnalytics}">
+                        <!-- Time filter -->
+                        <Border Classes="segmented">
+                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                <Button Classes="seg" Classes.selected="{Binding IsRangeAllTime}"
+                                        Command="{Binding SetAnalyticsRangeCommand}" CommandParameter="all">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <Path Classes="icon" Width="14" Height="14" VerticalAlignment="Center" Data="{StaticResource IconChart}" />
+                                        <TextBlock Text="{l:T AnAllTime}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Classes="seg" Classes.selected="{Binding !IsRangeAllTime}"
+                                        Command="{Binding SetAnalyticsRangeCommand}" CommandParameter="30">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <Path Classes="icon" Width="14" Height="14" VerticalAlignment="Center" Data="{StaticResource IconCalendar}" />
+                                        <TextBlock Text="{l:T AnLast30}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
                         </Border>
+
+                        <!-- Stat tiles: 4 across, 2x2 when the page is narrow -->
+                        <UniformGrid Classes="kpis" Margin="-6">
+                            <Border Classes="card" Margin="6" Padding="16">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Classes="statIcon">
+                                        <Path Classes="icon" Data="{StaticResource IconBag}" />
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                                        <TextBlock Classes="caption" Text="{l:T AnTrips}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Classes="metricValue" Text="{Binding StatTrips}" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <Border Classes="card" Margin="6" Padding="16">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Classes="statIcon">
+                                        <Path Classes="icon" Data="{StaticResource IconMap}" />
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                                        <TextBlock Classes="caption" Text="{l:T AnMaps}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Classes="metricValue" Text="{Binding StatMaps}" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <Border Classes="card" Margin="6" Padding="16">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Classes="statIcon">
+                                        <Path Classes="icon" Data="{StaticResource IconPin}" />
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                                        <TextBlock Classes="caption" Text="{l:T AnPlaces}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Classes="metricValue" Text="{Binding StatPlaces}" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                            <Border Classes="card" Margin="6" Padding="16">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Classes="statIcon">
+                                        <Path Classes="icon" Data="{StaticResource IconChart}" />
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                                        <TextBlock Classes="caption" Text="{l:T AnAvgPlaces}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Classes="metricValue" Text="{Binding StatAvgPlaces}" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                        </UniformGrid>
+
+                        <Border Classes="card" Padding="20" IsVisible="{Binding !HasRangeData}">
+                            <TextBlock Classes="caption" TextAlignment="Center" Text="{l:T AnNoRangeData}" />
+                        </Border>
+
+                        <StackPanel Spacing="16" IsVisible="{Binding HasRangeData}">
+                            <!-- Places over time: one series, one hue; hover a column for its numbers. -->
+                            <Border Classes="card" Padding="20">
+                                <StackPanel Spacing="14">
+                                    <TextBlock Classes="subhead" Text="{Binding TimelineTitle}" />
+                                    <Grid RowDefinitions="Auto,150,Auto">
+                                        <!-- Recessive scale: the top value and a hairline at the top and baseline. -->
+                                        <TextBlock Grid.Row="0" Classes="caption" FontSize="11" Margin="0,0,0,2" Text="{Binding TimelineMax}" />
+                                        <Border Grid.Row="1" Height="1" VerticalAlignment="Top" Background="{StaticResource HairlineBrush}" Opacity="0.6" />
+                                        <Border Grid.Row="1" Height="1" VerticalAlignment="Bottom" Background="{StaticResource HairlineBrush}" />
+                                        <ItemsControl Grid.Row="1" Grid.RowSpan="2" ClipToBounds="False" ItemsSource="{Binding TimelineColumns}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Rows="1" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:AnalyticsColumn">
+                                                    <Grid Classes="colCell" RowDefinitions="150,Auto" Background="Transparent"
+                                                          ToolTip.Tip="{Binding Tip}">
+                                                        <Border Grid.Row="0" Classes="colBar" Height="{Binding BarHeight}" />
+                                                        <!-- Negative side margins let a date label run wider than its (narrow) column. -->
+                                                        <TextBlock Grid.Row="1" Classes="caption" FontSize="11" Margin="-24,6,-24,0"
+                                                                   TextAlignment="Center" TextWrapping="NoWrap" Text="{Binding Label}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Biggest trips by places -->
+                            <Border Classes="card" Padding="20">
+                                <StackPanel Spacing="14">
+                                    <TextBlock Classes="subhead" Text="{l:T AnBiggest}" />
+                                    <ItemsControl ItemsSource="{Binding TopTrips}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:AnalyticsTopTrip">
+                                                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="0,0,0,12"
+                                                      Background="Transparent" ToolTip.Tip="{Binding DateText}">
+                                                    <TextBlock Grid.Column="0" Text="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="0,0,12,6" />
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Top">
+                                                        <Path Classes="icon" Width="13" Height="13" VerticalAlignment="Center" Data="{StaticResource IconPin}" />
+                                                        <TextBlock Text="{Binding Places}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                    <ProgressBar Grid.Row="1" Grid.ColumnSpan="2" Minimum="0" Maximum="1" Value="{Binding Fraction}"
+                                                                 Height="8" MinHeight="8" CornerRadius="4" Background="#1F2A44" Foreground="#3B82F6" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Recent trips -->
+                            <Border Classes="card" Padding="20">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Classes="subhead" Text="{l:T AnRecent}" />
+                                    <ItemsControl ItemsSource="{Binding RecentTrips}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:AnalyticsRecentTrip">
+                                                <Border BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0" Padding="0,10">
+                                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                                                        <StackPanel Grid.Column="0" Spacing="2" Margin="0,0,12,0">
+                                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                <Path Classes="icon" Width="12" Height="12" VerticalAlignment="Center"
+                                                                      Stroke="{StaticResource MutedBrush}" Data="{StaticResource IconCalendar}" />
+                                                                <TextBlock Classes="caption" Text="{Binding DateText}" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" Margin="0,0,14,0"
+                                                                    VerticalAlignment="Center" ToolTip.Tip="{l:T AnMaps}">
+                                                            <Path Classes="icon" Width="14" Height="14" VerticalAlignment="Center" Data="{StaticResource IconMap}" />
+                                                            <TextBlock Text="{Binding Maps}" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="5" Margin="0,0,14,0"
+                                                                    VerticalAlignment="Center" ToolTip.Tip="{l:T AnPlaces}">
+                                                            <Path Classes="icon" Width="14" Height="14" VerticalAlignment="Center" Data="{StaticResource IconPin}" />
+                                                            <TextBlock Text="{Binding Places}" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                        <Button Grid.Column="3" Padding="10,6" VerticalAlignment="Center" IsVisible="{Binding HasLink}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).OpenTripMapCommand}"
+                                                                CommandParameter="{Binding Link}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                <Path Classes="icon" Width="13" Height="13" VerticalAlignment="Center" Data="{StaticResource IconExternal}" />
+                                                                <TextBlock Text="{l:T AnOpenMap}" FontSize="12.5" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
 
