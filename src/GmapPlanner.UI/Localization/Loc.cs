@@ -35,8 +35,12 @@ public static class Loc
     {
         var m = Regex.Match(step, @"^Creating map (\d+)/(\d+): (.*)$");
         if (m.Success) return F("ProgCreatingMap", m.Groups[1].Value, m.Groups[2].Value, m.Groups[3].Value);
-        m = Regex.Match(step, @"^Sharing map (\d+)/(\d+)$");
-        if (m.Success) return F("ProgSharingMap", m.Groups[1].Value, m.Groups[2].Value);
+        m = Regex.Match(step, @"^(Sharing map|Created map|Map) (\d+)/(\d+)( failed)?$");
+        if (m.Success)
+        {
+            var key = m.Groups[1].Value switch { "Sharing map" => "ProgSharingMap", "Created map" => "ProgCreatedMap", _ => "ProgMapFailed" };
+            return F(key, m.Groups[2].Value, m.Groups[3].Value);
+        }
         return T(step);
     }
 

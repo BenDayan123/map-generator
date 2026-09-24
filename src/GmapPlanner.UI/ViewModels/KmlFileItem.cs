@@ -20,6 +20,10 @@ public partial class KmlFileItem : ObservableObject
     [ObservableProperty] private string _sharedWith = "";
     [ObservableProperty] private string _mapError = "";
 
+    // Live My Maps upload state while PublishAsync runs; the end result is HasMap / MapError.
+    [ObservableProperty] private bool _isWaiting;
+    [ObservableProperty] private bool _isUploading;
+
     public bool HasMap => MapUrl.Length > 0;
     partial void OnMapUrlChanged(string value) => OnPropertyChanged(nameof(HasMap));
 

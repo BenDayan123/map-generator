@@ -132,6 +132,13 @@ output folder, the service-account JSON for the usage ring, a credentials.json p
 and a green/⚪ setup-status checklist. The two pages are `IsVisible` toggles on
 `IsMakeMapPage`/`IsSettingsPage`, not a nav framework.
 
+**My Maps upload status.** The success screen appears as soon as the KML files exist, but
+publishing runs after that, so a card under the success banner tracks it (`IsPublishing` →
+`PublishSucceeded` / `PublishPartial` / `PublishFailed`) and each result row carries a
+waiting / uploading / on-My-Maps / failed pill. Rows follow `PublishService`'s per-map progress
+lines, parsed by `Core/Services/PublishProgress` (the same text also reaches the browser, relayed by
+the cloud worker). "Make another map" is disabled until the upload ends.
+
 **Phone layout.** Under 760px wide (`MainView.CompactWidth`) code-behind sets the `compact` class on
 `RootGrid`: the sidebar becomes a slide-over drawer (`drawerOpen`, opened by the top bar's menu
 button, closed by the scrim or a nav pick) and `UserControl.Styles` in `MainView.axaml` tighten the

@@ -87,7 +87,7 @@ public static class PublishService
             var kml = kmlFiles[i];
             var title = TitleFor(kml, tripName);
             var record = new PublishedMap { File = kml, Title = title };
-            progress?.Invoke($"Creating map {i + 1}/{total}: {title}", (i + 0.3) / total);
+            progress?.Invoke(PublishProgress.Creating(i, total, title), (i + 0.3) / total);
             try
             {
                 var created = await session.CreateMapFromKmlAsync(kml, title, ct);
@@ -99,7 +99,7 @@ public static class PublishService
 
                 if (recipients.Count > 0)
                 {
-                    progress?.Invoke($"Sharing map {i + 1}/{total}", (i + 0.7) / total);
+                    progress?.Invoke(PublishProgress.Sharing(i, total), (i + 0.7) / total);
                     record.SharedWith = await drive!.ShareMapAsync(
                         record.Mid, recipients, role, title, notify, ct);
                 }
@@ -109,6 +109,9 @@ public static class PublishService
                 record.Error = e.Message; // capture, keep going
             }
             results.Add(record);
+            progress?.Invoke(
+                record.Error.Length == 0 ? PublishProgress.Created(i, total) : PublishProgress.Failed(i, total),
+                (i + 1.0) / total);
         }
 
         progress?.Invoke("Done", 1.0);

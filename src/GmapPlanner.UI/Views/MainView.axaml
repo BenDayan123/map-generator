@@ -73,6 +73,44 @@
             <Setter Property="HorizontalAlignment" Value="Left" />
             <Setter Property="Margin" Value="0,12,0,0" />
         </Style>
+        <!-- My Maps upload card: neutral while running, then green / amber / red. -->
+        <Style Selector="Border.pubOk">
+            <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
+            <Setter Property="Background" Value="#1F22C55E" />
+        </Style>
+        <Style Selector="Border.pubOk TextBlock.pubTitle">
+            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+        </Style>
+        <Style Selector="Border.pubWarn">
+            <Setter Property="BorderBrush" Value="{StaticResource WarnBrush}" />
+            <Setter Property="Background" Value="#1FF59E0B" />
+        </Style>
+        <Style Selector="Border.pubWarn TextBlock.pubTitle">
+            <Setter Property="Foreground" Value="{StaticResource WarnBrush}" />
+        </Style>
+        <Style Selector="Border.pubBad">
+            <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}" />
+            <Setter Property="Background" Value="#1FEF4444" />
+        </Style>
+        <Style Selector="Border.pubBad TextBlock.pubTitle">
+            <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+        </Style>
+        <Style Selector="Arc.spinner">
+            <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+            <Style.Animations>
+                <Animation Duration="0:0:0.9" IterationCount="INFINITE">
+                    <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="0" /></KeyFrame>
+                    <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="360" /></KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <!-- Per-map status pill on the result rows. -->
+        <Style Selector="Border.mapBadge">
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
         <Style Selector="Grid#RootGrid.compact TextBlock.metricValue">
             <Setter Property="FontSize" Value="22" />
         </Style>
@@ -461,6 +499,35 @@
                             </Grid>
                         </Border>
 
+                        <!-- My Maps upload: the map files above are ready right away, but creating the
+                             maps online takes a while — say so, live, then show how it ended. -->
+                        <Border Classes="card" Padding="18" IsVisible="{Binding HasPublishStatus}"
+                                Classes.pubOk="{Binding PublishSucceeded}"
+                                Classes.pubWarn="{Binding PublishPartial}"
+                                Classes.pubBad="{Binding PublishFailed}">
+                            <StackPanel Spacing="8">
+                                <DockPanel>
+                                    <Path Classes="icon" DockPanel.Dock="Left" Margin="0,0,10,0" Width="18" Height="18"
+                                          VerticalAlignment="Center" Data="{StaticResource IconGlobe}" />
+                                    <TextBlock Classes="pubTitle" Text="{Binding PublishTitle}" FontSize="16"
+                                               FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <TextBlock Classes="caption" TextWrapping="Wrap" IsVisible="{Binding IsPublishing}"
+                                           Text="{l:T PubUploadingHelp}" />
+                                <ProgressBar Minimum="0" Maximum="1" Value="{Binding PublishFraction}" Height="8" CornerRadius="4"
+                                             IsIndeterminate="{Binding PublishIndeterminate}" IsVisible="{Binding IsPublishing}" />
+                                <DockPanel IsVisible="{Binding PublishDetail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <!-- Tiny spinner beside the live step while the upload runs. -->
+                                    <Arc Classes="spinner" DockPanel.Dock="Left" Width="13" Height="13" Margin="0,0,8,0"
+                                         VerticalAlignment="Center" StartAngle="0" SweepAngle="270"
+                                         Stroke="#60A5FA" StrokeThickness="2" StrokeLineCap="Round"
+                                         IsVisible="{Binding IsPublishing}" />
+                                    <TextBlock Classes="caption" TextWrapping="Wrap" VerticalAlignment="Center"
+                                               Text="{Binding PublishDetail}" />
+                                </DockPanel>
+                            </StackPanel>
+                        </Border>
+
                         <Grid ColumnDefinitions="*,*,*">
                             <Border Grid.Column="0" Classes="card" Margin="0,0,8,0">
                                 <StackPanel>
@@ -503,6 +570,19 @@
                                                 <StackPanel Orientation="Horizontal" Spacing="7">
                                                     <Path Classes="icon" Width="15" Height="15" VerticalAlignment="Center" Data="{StaticResource IconPin}" />
                                                     <TextBlock FontWeight="SemiBold" FontSize="15" Text="{Binding DayLabel}" VerticalAlignment="Center" />
+                                                    <Border Classes="mapBadge" Background="#1F94A3B8" IsVisible="{Binding IsWaiting}">
+                                                        <TextBlock Classes="caption" FontSize="12" Text="{l:T MapWaiting}" />
+                                                    </Border>
+                                                    <Border Classes="mapBadge" Background="#333B82F6" IsVisible="{Binding IsUploading}">
+                                                        <TextBlock FontSize="12" Foreground="#93C5FD" Text="{l:T MapUploading}" />
+                                                    </Border>
+                                                    <Border Classes="mapBadge" Background="#3322C55E" IsVisible="{Binding HasMap}">
+                                                        <TextBlock FontSize="12" Foreground="{StaticResource SuccessBrush}" Text="{l:T MapOnline}" />
+                                                    </Border>
+                                                    <Border Classes="mapBadge" Background="#33EF4444"
+                                                            IsVisible="{Binding MapError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                        <TextBlock FontSize="12" Foreground="{StaticResource DangerBrush}" Text="{l:T MapFailedBadge}" />
+                                                    </Border>
                                                 </StackPanel>
                                                 <TextBlock Classes="caption" Text="{Binding SharedWith}"
                                                            IsVisible="{Binding SharedWith, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />

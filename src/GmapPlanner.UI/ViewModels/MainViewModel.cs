@@ -242,6 +242,32 @@ public partial class MainViewModel : ViewModelBase
 
     public ObservableCollection<KmlFileItem> ResultFiles { get; } = [];
 
+    // --- My Maps upload status (the success screen's publish card) ------------
+    // The map files are ready before publishing starts, so the success screen shows at once;
+    // this card says whether the maps are still being created online, done, or failed.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPublishStatus))]
+    [NotifyCanExecuteChangedFor(nameof(StartOverCommand))]
+    private bool _isPublishing;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(PublishIndeterminate))] private double _publishFraction;
+    [ObservableProperty] private string _publishDetail = "";
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasPublishStatus))] private bool _publishSucceeded;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasPublishStatus))] private bool _publishPartial;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasPublishStatus))] private bool _publishFailed;
+    [ObservableProperty] private string _publishTitle = "";
+
+    /// <summary>A moving bar until the first map starts (browser launch, Drive sign-in, job submit).</summary>
+    public bool PublishIndeterminate => PublishFraction <= 0;
+
+    public bool HasPublishStatus => IsPublishing || PublishSucceeded || PublishPartial || PublishFailed;
+
+    private void ClearPublishStatus()
+    {
+        IsPublishing = PublishSucceeded = PublishPartial = PublishFailed = false;
+        PublishTitle = PublishDetail = "";
+        PublishFraction = 0;
+    }
+
     // --- Trip-name prompt (side panel shown mid-run; KML writing waits on it) ----
     [ObservableProperty] private bool _isNamePromptOpen;
     [ObservableProperty]
@@ -277,8 +303,11 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>"Make another map" on the success screen.</summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanStartOver))]
     private void StartOver() => ResetMakeMapPage();
+
+    // Starting over mid-upload would wipe the rows the running publish is still filling in.
+    private bool CanStartOver() => !IsPublishing;
 
     private void ResetMakeMapPage()
     {
@@ -290,6 +319,7 @@ public partial class MainViewModel : ViewModelBase
         Progress = 0;
         GeocodeWarning = "";
         ResultFiles.Clear();
+        ClearPublishStatus();
     }
 
     public MainViewModel(IPlatformServices platform)
@@ -527,6 +557,7 @@ public partial class MainViewModel : ViewModelBase
         ErrorText = "";
         Progress = 0;
         ResultFiles.Clear();
+        ClearPublishStatus();
         _runCts = new CancellationTokenSource();
         try
         {
@@ -559,7 +590,7 @@ public partial class MainViewModel : ViewModelBase
             if (PublishEnabled && Features.Publish && (!Features.RequiresSession || HasPublishSession))
                 await PublishAsync(result.TripName, result.KmlFiles);
             else if (PublishEnabled && Features.Publish && Features.RequiresSession && !HasPublishSession)
-                ErrorText = Loc.T("ErrNoSession");
+                ShowPublishFailed(Loc.T("ErrNoSession"));
 
             // Log the run to the analytics Google Sheet (best-effort; no-op if unconfigured).
             // Fire-and-forget: logging never throws, and a slow/unreachable Sheet must not keep
@@ -601,10 +632,15 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>
     /// Creates one My Maps map per KML file and shares it. Publishing failing must never
     /// discard the KML files already generated, so this reports into the file rows and the
-    /// error banner rather than throwing out of the run.
+    /// success screen's publish card rather than throwing out of the run.
     /// </summary>
     private async Task PublishAsync(string tripName, IReadOnlyList<KmlFile> files)
     {
+        ClearPublishStatus();
+        IsPublishing = true;
+        PublishTitle = Loc.T("PubUploading");
+        PublishDetail = Loc.T("PubStarting");
+        foreach (var row in ResultFiles) row.IsWaiting = true;
         try
         {
             var maps = await _platform.PublishAsync(
@@ -616,8 +652,9 @@ public partial class MainViewModel : ViewModelBase
                 ShowBrowser,
                 (step, frac) =>
                 {
-                    StatusText = Loc.Progress(step);
-                    Progress = frac;
+                    PublishDetail = Loc.Progress(step);
+                    PublishFraction = frac;
+                    TrackRow(step);
                 });
 
             var byFile = ResultFiles.ToDictionary(f => f.FileName, StringComparer.OrdinalIgnoreCase);
@@ -635,16 +672,50 @@ public partial class MainViewModel : ViewModelBase
             }
 
             var ok = maps.Count(m => m.Error.Length == 0);
-            StatusText = "";
-            if (ok < maps.Count)
-                ErrorText = Loc.F("PublishedPartial", ok, maps.Count);
+            if (ok == maps.Count)
+            {
+                PublishSucceeded = true;
+                PublishTitle = Loc.F("PubDone", ok);
+                PublishDetail = Loc.T("PubDoneHelp");
+            }
+            else if (ok > 0)
+            {
+                PublishPartial = true;
+                PublishTitle = Loc.F("PubPartial", ok, maps.Count);
+                PublishDetail = Loc.T("PubPartialHelp");
+            }
+            else
+            {
+                ShowPublishFailed(maps.FirstOrDefault(m => m.Error.Length > 0)?.Error ?? "");
+            }
         }
         catch (Exception e)
         {
             // Auth/setup failure before the per-file loop: the KML files still exist.
-            StatusText = "";
-            ErrorText = Loc.F("ErrPublish", e.Message);
+            ShowPublishFailed(e.Message);
         }
+        finally
+        {
+            IsPublishing = false;
+            foreach (var row in ResultFiles) row.IsWaiting = row.IsUploading = false;
+        }
+    }
+
+    /// <summary>Moves a result row between waiting / uploading as the publisher reports each map.</summary>
+    private void TrackRow(string step)
+    {
+        if (PublishProgress.Parse(step) is not { } p || p.Index >= ResultFiles.Count) return;
+        var row = ResultFiles[p.Index];
+        row.IsWaiting = false;
+        row.IsUploading = p.Step is MapStep.Creating or MapStep.Sharing;
+    }
+
+    private void ShowPublishFailed(string message)
+    {
+        IsPublishing = false;
+        PublishFailed = true;
+        PublishTitle = Loc.T("PubFailed");
+        PublishDetail = message;
     }
 
     [RelayCommand]
