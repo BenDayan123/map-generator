@@ -32,6 +32,9 @@ public interface IPlatformServices
     SetupStatus GetSetupStatus();
     void SaveDriveCredentials(string json);
 
+    /// <summary>Deletes everything this app saved on the device: keys, Drive credentials/token, sign-ins, session.</summary>
+    void ResetAll();
+
     void OpenUrl(string url);
 
     /// <summary>The saved cloud-publish session.json (opaque JSON), or null. Browser host only; desktop returns null.</summary>

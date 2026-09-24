@@ -74,6 +74,8 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private bool _hasGoogleLogin;
     [ObservableProperty] private bool _hasDriveCredentials;
     [ObservableProperty] private bool _hasDriveToken;
+    [ObservableProperty] private bool _isReadyToMakeMaps;
+    [ObservableProperty] private bool _isConfirmingReset;
 
     // --- Usage gauge --------------------------------------------------------
     private bool _usageLoading;
@@ -388,6 +390,29 @@ public partial class MainViewModel : ViewModelBase
         HasGoogleLogin = status.HasGoogleLogin;
         HasDriveCredentials = status.HasDriveCredentials;
         HasDriveToken = status.HasDriveToken;
+        IsReadyToMakeMaps = HasGeminiKey && HasGeoKey;
+    }
+
+    [RelayCommand]
+    private void AskReset() => IsConfirmingReset = true;
+
+    [RelayCommand]
+    private void CancelReset() => IsConfirmingReset = false;
+
+    /// <summary>Settings → "Reset everything": wipes every saved key, file and sign-in on this device.</summary>
+    [RelayCommand]
+    private void ResetAll()
+    {
+        IsConfirmingReset = false;
+        _platform.ResetAll();
+        // Each setter re-saves a blank config.json (keeping only the language choice).
+        GoogleApiKey = GeoApiKey = GcpSaJson = AnalyticsSheetId = "";
+        HasPublishSession = false;
+        LoginStatus = SessionStatus = UpdateStatus = "";
+        _lastGauge = null;
+        HasUsage = false;
+        RefreshSetupStatus();
+        SetupMessage = Loc.T("ResetDone");
     }
 
     /// <summary>
@@ -820,15 +845,6 @@ public partial class MainViewModel : ViewModelBase
         {
             IsCheckingUpdate = false;
         }
-    }
-
-    [RelayCommand]
-    private void OpenReleasePage()
-    {
-        var url = _pendingUpdate is { HtmlUrl.Length: > 0 } info
-            ? info.HtmlUrl
-            : $"https://github.com/{AppConfig.GithubRepo}/releases";
-        _platform.OpenUrl(url);
     }
 
     /// <summary>Hands the generated KML to the user (desktop: a chosen folder; browser: downloads).</summary>

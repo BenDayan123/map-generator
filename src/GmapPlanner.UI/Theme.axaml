@@ -49,6 +49,12 @@
             <StreamGeometry x:Key="IconBox">M12 2l8 4.5v9L12 20l-8-4.5v-9z M4 6.5l8 4.5 8-4.5 M12 11v9</StreamGeometry>
             <StreamGeometry x:Key="IconUpload">M12 15V3 M7 8l5-5 5 5 M5 21h14</StreamGeometry>
             <StreamGeometry x:Key="IconDownload">M12 3v12 M7 12l5 5 5-5 M5 21h14</StreamGeometry>
+            <StreamGeometry x:Key="IconCheck">M5 12.5l4.5 4.5L19 7.5</StreamGeometry>
+            <!-- Ticks drawn in their own box (12 / 20 px) and rendered unstretched, so they sit dead-center. -->
+            <StreamGeometry x:Key="IconTick12">M3 6.2L5.2 8.4L9.2 4</StreamGeometry>
+            <StreamGeometry x:Key="IconTick20">M5.5 10.3L8.7 13.5L14.6 7</StreamGeometry>
+            <StreamGeometry x:Key="IconAlert">M12 3.5l9.5 16.5h-19z M12 10v4.5 M12 17.3v.2</StreamGeometry>
+            <StreamGeometry x:Key="IconRefresh">M20 11a8 8 0 1 0-2.3 5.7 M20 4.5V11h-6.5</StreamGeometry>
             <StreamGeometry x:Key="IconEye">M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</StreamGeometry>
             <StreamGeometry x:Key="IconChart">M3 3v18h18 M7 16v-5 M12 16V8 M17 16v-9</StreamGeometry>
         </ResourceDictionary>
@@ -359,5 +365,72 @@
         </Style>
         <Style Selector="Button.eye:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <!-- ============ Settings page ============ -->
+        <!-- Status checklist: a ring that fills green with a tick when the item is set. -->
+        <Style Selector="Border.statusDot">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.statusDot.on">
+            <Setter Property="BorderBrush" Value="#22C55E" />
+            <Setter Property="Background" Value="#2622C55E" />
+        </Style>
+        <Style Selector="Border.statusDot Path">
+            <Setter Property="IsVisible" Value="False" />
+            <Setter Property="Width" Value="12" />
+            <Setter Property="Height" Value="12" />
+            <Setter Property="Stretch" Value="None" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Data" Value="{StaticResource IconTick12}" />
+            <Setter Property="Stroke" Value="{StaticResource SuccessBrush}" />
+            <Setter Property="StrokeThickness" Value="1.8" />
+            <Setter Property="StrokeLineCap" Value="Round" />
+            <Setter Property="StrokeJoin" Value="Round" />
+        </Style>
+        <Style Selector="Border.statusDot.on Path">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+        <!-- Small rounded label: "Ready" / "Not set", the version number. -->
+        <Style Selector="Border.pill">
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="Padding" Value="10,3" />
+            <Setter Property="Background" Value="#1F94A3B8" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.pill.ok">
+            <Setter Property="Background" Value="#2622C55E" />
+        </Style>
+        <Style Selector="Border.pill TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+        </Style>
+        <Style Selector="Border.pill.ok TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+        </Style>
+        <!-- Round icon badge at the start of a settings card header. -->
+        <Style Selector="Border.iconBadge">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Background" Value="{StaticResource AccentSoftBrush}" />
+            <Setter Property="Margin" Value="0,0,14,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.iconBadge.good">
+            <Setter Property="Background" Value="#2622C55E" />
+        </Style>
+        <Style Selector="Border.iconBadge.warn">
+            <Setter Property="Background" Value="#26F59E0B" />
+        </Style>
+        <Style Selector="Border.card.dangerCard">
+            <Setter Property="BorderBrush" Value="#59EF4444" />
         </Style>
 </Styles>

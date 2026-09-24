@@ -31,6 +31,20 @@ public sealed class DesktopPlatformServices : IPlatformServices
 
     public void SaveDriveCredentials(string json) => File.WriteAllText(AppConfig.DriveCredentialsFile, json);
 
+    public void ResetAll()
+    {
+        // Best-effort each: a Chrome window still holding the profile must not stop the rest.
+        Try(() => File.Delete(AppDataPaths.DataPath("config.json")));
+        Try(() => File.Delete(AppConfig.DriveCredentialsFile));
+        Try(() => { if (Directory.Exists(AppConfig.DriveTokenDir)) Directory.Delete(AppConfig.DriveTokenDir, true); });
+        Try(() => { if (Directory.Exists(AppConfig.PlaywrightProfileDir)) Directory.Delete(AppConfig.PlaywrightProfileDir, true); });
+
+        static void Try(Action delete)
+        {
+            try { delete(); } catch { /* keep going */ }
+        }
+    }
+
     // The desktop publishes from its persistent Playwright profile, not a session.json.
     public string? LoadSession() => null;
     public void SaveSession(string sessionJson) { }

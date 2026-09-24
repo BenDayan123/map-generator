@@ -39,6 +39,13 @@ public sealed partial class BrowserPlatformServices : IPlatformServices
     public void SaveDriveCredentials(string json) =>
         throw new NotSupportedException("Drive credentials aren't used by the web version yet.");
 
+    public void ResetAll()
+    {
+        // Empty values read back as "nothing saved" (FromJson / LoadSession treat blank as unset).
+        SetItem(SettingsKey, "");
+        SetItem(SessionKey, "");
+    }
+
     public void OpenUrl(string url) => OpenUrlJs(url);
 
     public string? LoadSession()

@@ -104,6 +104,19 @@
                 </Animation>
             </Style.Animations>
         </Style>
+        <!-- Settings inputs: two columns, one when the page area is narrow (MainView.axaml.cs sets
+             RootGrid.narrowPage from the page's own width, not the window's). Two Auto rows; narrow mode moves the second cell under the first. Cells carry Margin 9
+             inside a -9 grid margin, so the gutter works in both layouts. -->
+        <Style Selector="Grid.twoCol > DockPanel.colB">
+            <Setter Property="Grid.Column" Value="1" />
+        </Style>
+        <Style Selector="Grid#RootGrid.narrowPage Grid.twoCol > DockPanel">
+            <Setter Property="Grid.ColumnSpan" Value="2" />
+        </Style>
+        <Style Selector="Grid#RootGrid.narrowPage Grid.twoCol > DockPanel.colB">
+            <Setter Property="Grid.Column" Value="0" />
+            <Setter Property="Grid.Row" Value="1" />
+        </Style>
         <!-- Per-map status pill on the result rows. -->
         <Style Selector="Border.mapBadge">
             <Setter Property="CornerRadius" Value="10" />
@@ -705,24 +718,125 @@
                 </StackPanel>
 
                 <!-- ======================== SETTINGS ======================== -->
-                <StackPanel Spacing="18" IsVisible="{Binding IsSettingsPage}">
-                    <StackPanel Orientation="Horizontal" Spacing="11">
-                        <Path Classes="icon" Width="26" Height="26" VerticalAlignment="Center"
-                              StrokeThickness="1.6" Stroke="#3B82F6" Data="{StaticResource IconSettings}" />
-                        <TextBlock Classes="h1" Text="{l:T NavSettings}" VerticalAlignment="Center" />
+                <!-- Capped at the same width as the Make Map page so cards don't stretch across a wide window. -->
+                <StackPanel Spacing="16" MaxWidth="780" IsVisible="{Binding IsSettingsPage}">
+                    <StackPanel Spacing="6" Margin="0,0,0,4">
+                        <StackPanel Orientation="Horizontal" Spacing="11">
+                            <Path Classes="icon" Width="26" Height="26" VerticalAlignment="Center"
+                                  StrokeThickness="1.6" Stroke="#3B82F6" Data="{StaticResource IconSettings}" />
+                            <TextBlock Classes="h1" Text="{l:T NavSettings}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Classes="caption" FontSize="14" Text="{l:T SettingsSub}" />
                     </StackPanel>
-                    <TextBlock Classes="caption" FontSize="13.5"
-                               Text="{l:T SettingsSub}" />
 
-                    <!-- One-file setup -->
-                    <Border Classes="card" BorderBrush="{StaticResource InfoBrush}" Background="#1438BDF8">
-                        <StackPanel Spacing="8">
+                    <!-- == Setup status: the summary first, so it's clear at a glance what's missing. == -->
+                    <Border Classes="card" Padding="20">
+                        <StackPanel Spacing="14">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Left" Classes="iconBadge"
+                                        Classes.good="{Binding IsReadyToMakeMaps}" Classes.warn="{Binding !IsReadyToMakeMaps}">
+                                    <Panel>
+                                        <Path Width="20" Height="20" Stretch="None" StrokeThickness="2.2" StrokeLineCap="Round"
+                                              StrokeJoin="Round" Stroke="{StaticResource SuccessBrush}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Data="{StaticResource IconTick20}" IsVisible="{Binding IsReadyToMakeMaps}" />
+                                        <Path Classes="icon" Width="20" Height="20" Stroke="{StaticResource WarnBrush}"
+                                              Data="{StaticResource IconAlert}" IsVisible="{Binding !IsReadyToMakeMaps}" />
+                                    </Panel>
+                                </Border>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Classes="subhead" Text="{l:T AllSet}" IsVisible="{Binding IsReadyToMakeMaps}" />
+                                    <TextBlock Classes="caption" Text="{l:T AllSetHelp}" IsVisible="{Binding IsReadyToMakeMaps}" />
+                                    <TextBlock Classes="subhead" Text="{l:T NeedKeys}" IsVisible="{Binding !IsReadyToMakeMaps}" />
+                                    <TextBlock Classes="caption" Text="{l:T NeedKeysHelp}" IsVisible="{Binding !IsReadyToMakeMaps}" />
+                                </StackPanel>
+                            </DockPanel>
+                            <Border Height="1" Background="{StaticResource HairlineBrush}" />
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <Border Classes="statusDot" Classes.on="{Binding HasGeminiKey}">
+                                        <Path />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Text="{l:T GeminiKey}" />
+                                    <Border Grid.Column="2" Classes="pill" Classes.ok="{Binding HasGeminiKey}">
+                                        <Panel>
+                                            <TextBlock Text="{l:T StatusReady}" IsVisible="{Binding HasGeminiKey}" />
+                                            <TextBlock Text="{l:T StatusNotSet}" IsVisible="{Binding !HasGeminiKey}" />
+                                        </Panel>
+                                    </Border>
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <Border Classes="statusDot" Classes.on="{Binding HasGeoKey}">
+                                        <Path />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Text="{l:T PlacesKey}" />
+                                    <Border Grid.Column="2" Classes="pill" Classes.ok="{Binding HasGeoKey}">
+                                        <Panel>
+                                            <TextBlock Text="{l:T StatusReady}" IsVisible="{Binding HasGeoKey}" />
+                                            <TextBlock Text="{l:T StatusNotSet}" IsVisible="{Binding !HasGeoKey}" />
+                                        </Panel>
+                                    </Border>
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding !Features.RequiresSession}">
+                                    <Border Classes="statusDot" Classes.on="{Binding HasGoogleLogin}">
+                                        <Path />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Text="{l:T SignedInMyMaps}" />
+                                    <Border Grid.Column="2" Classes="pill" Classes.ok="{Binding HasGoogleLogin}">
+                                        <Panel>
+                                            <TextBlock Text="{l:T StatusReady}" IsVisible="{Binding HasGoogleLogin}" />
+                                            <TextBlock Text="{l:T StatusNotSet}" IsVisible="{Binding !HasGoogleLogin}" />
+                                        </Panel>
+                                    </Border>
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding !Features.RequiresSession}">
+                                    <Border Classes="statusDot" Classes.on="{Binding HasDriveCredentials}">
+                                        <Path />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Text="{l:T DriveCredsFile}" />
+                                    <Border Grid.Column="2" Classes="pill" Classes.ok="{Binding HasDriveCredentials}">
+                                        <Panel>
+                                            <TextBlock Text="{l:T StatusReady}" IsVisible="{Binding HasDriveCredentials}" />
+                                            <TextBlock Text="{l:T StatusNotSet}" IsVisible="{Binding !HasDriveCredentials}" />
+                                        </Panel>
+                                    </Border>
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding !Features.RequiresSession}">
+                                    <Border Classes="statusDot" Classes.on="{Binding HasDriveToken}">
+                                        <Path />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Text="{l:T DriveAuthorized}" />
+                                    <Border Grid.Column="2" Classes="pill" Classes.ok="{Binding HasDriveToken}">
+                                        <Panel>
+                                            <TextBlock Text="{l:T StatusReady}" IsVisible="{Binding HasDriveToken}" />
+                                            <TextBlock Text="{l:T StatusNotSet}" IsVisible="{Binding !HasDriveToken}" />
+                                        </Panel>
+                                    </Border>
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding Features.RequiresSession}">
+                                    <Border Classes="statusDot" Classes.on="{Binding HasPublishSession}">
+                                        <Path />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Text="{l:T SessionLoaded}" />
+                                    <Border Grid.Column="2" Classes="pill" Classes.ok="{Binding HasPublishSession}">
+                                        <Panel>
+                                            <TextBlock Text="{l:T StatusReady}" IsVisible="{Binding HasPublishSession}" />
+                                            <TextBlock Text="{l:T StatusNotSet}" IsVisible="{Binding !HasPublishSession}" />
+                                        </Panel>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- == One-file setup == -->
+                    <Border Classes="card" Padding="20" BorderBrush="{StaticResource InfoBrush}" Background="#1438BDF8">
+                        <StackPanel Spacing="10">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Path Classes="icon" Width="17" Height="17" VerticalAlignment="Center" Stroke="{StaticResource InfoBrush}" Data="{StaticResource IconBox}" />
                                 <TextBlock Classes="subhead" Text="{l:T OneFileSetup}" VerticalAlignment="Center" />
                             </StackPanel>
-                            <TextBlock Classes="caption"
-                                       Text="{l:T OneFileSetupHelp}" />
+                            <TextBlock Classes="caption" Text="{l:T OneFileSetupHelp}" />
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <Button Name="SetupBundleButton" Content="{l:T ChooseSetupFile}" />
                                 <TextBlock Classes="caption" Text="{l:T OrDragJson}" VerticalAlignment="Center" />
@@ -732,139 +846,184 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Classes="card">
+                    <!-- == API keys == -->
+                    <Border Classes="card" Padding="20">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="{l:T GeminiKey}" />
-                            <TextBlock Classes="caption"
-                                       Text="{l:T GeminiKeyHelp}" />
-                            <Grid>
-                                <TextBox Name="GeminiKeyBox" PasswordChar="•" Text="{Binding GoogleApiKey}"
-                                         Padding="8,6,40,6" Watermark="AIza…" />
-                                <Button Name="GeminiKeyEye" Classes="eye">
-                                    <Path Classes="icon" Width="18" Height="18"
-                                          Stroke="{StaticResource MutedBrush}" Data="{StaticResource IconEye}" />
-                                </Button>
+                            <TextBlock Classes="subhead" Text="{l:T ApiKeys}" />
+                            <Grid Classes="twoCol" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" Margin="-9">
+                                <!-- Input docked to the bottom so both columns' fields line up. -->
+                                <DockPanel Margin="9">
+                                    <TextBlock DockPanel.Dock="Top" Classes="fieldLabel" Text="{l:T GeminiKey}" />
+                                    <TextBlock DockPanel.Dock="Top" Classes="caption" Margin="0,4,0,8" Text="{l:T GeminiKeyHelp}" />
+                                    <Grid DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
+                                        <TextBox Name="GeminiKeyBox" PasswordChar="•" Text="{Binding GoogleApiKey}"
+                                                 Padding="8,6,40,6" Watermark="AIza…" />
+                                        <Button Name="GeminiKeyEye" Classes="eye">
+                                            <Path Classes="icon" Width="18" Height="18"
+                                                  Stroke="{StaticResource MutedBrush}" Data="{StaticResource IconEye}" />
+                                        </Button>
+                                    </Grid>
+                                </DockPanel>
+                                <!-- Input docked to the bottom so both columns' fields line up. -->
+                                <DockPanel Classes="colB" Margin="9">
+                                    <TextBlock DockPanel.Dock="Top" Classes="fieldLabel" Text="{l:T PlacesKey}" />
+                                    <TextBlock DockPanel.Dock="Top" Classes="caption" Margin="0,4,0,8" Text="{l:T PlacesKeyHelp}" />
+                                    <Grid DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
+                                        <TextBox Name="GeoKeyBox" PasswordChar="•" Text="{Binding GeoApiKey}"
+                                                 Padding="8,6,40,6" Watermark="AIza…" />
+                                        <Button Name="GeoKeyEye" Classes="eye">
+                                            <Path Classes="icon" Width="18" Height="18"
+                                                  Stroke="{StaticResource MutedBrush}" Data="{StaticResource IconEye}" />
+                                        </Button>
+                                    </Grid>
+                                </DockPanel>
                             </Grid>
                         </StackPanel>
                     </Border>
 
-                    <Border Classes="card">
-                        <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="{l:T PlacesKey}" />
-                            <TextBlock Classes="caption"
-                                       Text="{l:T PlacesKeyHelp}" />
-                            <Grid>
-                                <TextBox Name="GeoKeyBox" PasswordChar="•" Text="{Binding GeoApiKey}"
-                                         Padding="8,6,40,6" Watermark="AIza…" />
-                                <Button Name="GeoKeyEye" Classes="eye">
-                                    <Path Classes="icon" Width="18" Height="18"
-                                          Stroke="{StaticResource MutedBrush}" Data="{StaticResource IconEye}" />
-                                </Button>
-                            </Grid>
-                        </StackPanel>
+                    <!-- == Usage ring + Analytics Sheet (optional) == -->
+                    <Border Classes="card" Padding="20" IsVisible="{Binding Features.Analytics}">
+                        <Grid Classes="twoCol" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" Margin="-9">
+                                <!-- Input docked to the bottom so both columns' fields line up. -->
+                                <DockPanel Margin="9">
+                                    <TextBlock DockPanel.Dock="Top" Classes="fieldLabel" Text="{l:T UsageGauge}" />
+                                    <TextBlock DockPanel.Dock="Top" Classes="caption" Margin="0,4,0,8" Text="{l:T UsageGaugeHelp}" />
+                                    <TextBox DockPanel.Dock="Bottom" VerticalAlignment="Bottom" AcceptsReturn="True"
+                                             Height="90" TextWrapping="Wrap"
+                                             Text="{Binding GcpSaJson}" Watermark="{l:T PasteSaJson}" />
+                                </DockPanel>
+                                <!-- Input docked to the bottom so both columns' fields line up. -->
+                                <DockPanel Classes="colB" Margin="9">
+                                    <TextBlock DockPanel.Dock="Top" Classes="fieldLabel" Text="{l:T AnalyticsSheet}" />
+                                    <TextBlock DockPanel.Dock="Top" Classes="caption" Margin="0,4,0,8" Text="{l:T AnalyticsSheetHelp}" />
+                                    <TextBox DockPanel.Dock="Bottom" VerticalAlignment="Bottom"
+                                             Text="{Binding AnalyticsSheetId}" Watermark="{l:T SheetIdWatermark}" />
+                                </DockPanel>
+                        </Grid>
                     </Border>
 
-                    <!-- Service-account JSON (usage gauge) -->
-                    <Border Classes="card" IsVisible="{Binding Features.Analytics}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="{l:T UsageGauge}" />
-                            <TextBlock Classes="caption"
-                                       Text="{l:T UsageGaugeHelp}" />
-                            <TextBox AcceptsReturn="True" Height="90" TextWrapping="Wrap"
-                                     Text="{Binding GcpSaJson}"
-                                     Watermark="{l:T PasteSaJson}" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Analytics Sheet -->
-                    <Border Classes="card" IsVisible="{Binding Features.Analytics}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="{l:T AnalyticsSheet}" />
-                            <TextBlock Classes="caption"
-                                       Text="{l:T AnalyticsSheetHelp}" />
-                            <TextBox Text="{Binding AnalyticsSheetId}"
-                                     Watermark="{l:T SheetIdWatermark}" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Drive sharing credentials -->
-                    <Border Classes="card" IsVisible="{Binding Features.Publish}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="{l:T DriveCreds}" />
-                            <TextBlock Classes="caption"
-                                       Text="{l:T DriveCredsHelp}" />
+                    <!-- == Drive sharing credentials (desktop: the web publishes via a session instead) == -->
+                    <Border Classes="card" Padding="20" IsVisible="{Binding !Features.RequiresSession}">
+                        <StackPanel Spacing="10">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Right" Classes="pill" Classes.ok="{Binding HasDriveCredentials}">
+                                    <Panel>
+                                        <TextBlock Text="{l:T StatusReady}" IsVisible="{Binding HasDriveCredentials}" />
+                                        <TextBlock Text="{l:T StatusNotSet}" IsVisible="{Binding !HasDriveCredentials}" />
+                                    </Panel>
+                                </Border>
+                                <TextBlock Classes="subhead" Text="{l:T DriveCreds}" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <TextBlock Classes="caption" Text="{l:T DriveCredsHelp}" />
+                            <Border IsVisible="{Binding HasDriveCredentials}" CornerRadius="10" Padding="12,10"
+                                    Background="#1422C55E" BorderBrush="#4022C55E" BorderThickness="1">
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Classes="statusDot on" Margin="0,0,10,0">
+                                        <Path />
+                                    </Border>
+                                    <TextBlock Text="{l:T CredsSavedState}" Foreground="{StaticResource SuccessBrush}"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                </DockPanel>
+                            </Border>
                             <StackPanel Orientation="Horizontal" Spacing="10">
-                                <Button Name="CredentialsButton" Content="{l:T ChooseCreds}" />
+                                <Button Name="CredentialsButton">
+                                    <Panel>
+                                        <TextBlock Text="{l:T ChooseCreds}" IsVisible="{Binding !HasDriveCredentials}" />
+                                        <TextBlock Text="{l:T ReplaceCreds}" IsVisible="{Binding HasDriveCredentials}" />
+                                    </Panel>
+                                </Button>
                                 <TextBlock Classes="caption" Text="{l:T OrDragJson}" VerticalAlignment="Center" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
 
-                    <!-- Cloud publishing session (browser host only) -->
-                    <Border Classes="card" IsVisible="{Binding Features.RequiresSession}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="{l:T CloudSession}" />
-                            <TextBlock Classes="caption"
-                                       Text="{l:T CloudSessionHelp}" />
+                    <!-- == Cloud publishing session (browser host only) == -->
+                    <Border Classes="card" Padding="20" IsVisible="{Binding Features.RequiresSession}">
+                        <StackPanel Spacing="10">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Right" Classes="pill" Classes.ok="{Binding HasPublishSession}">
+                                    <Panel>
+                                        <TextBlock Text="{l:T StatusReady}" IsVisible="{Binding HasPublishSession}" />
+                                        <TextBlock Text="{l:T StatusNotSet}" IsVisible="{Binding !HasPublishSession}" />
+                                    </Panel>
+                                </Border>
+                                <TextBlock Classes="subhead" Text="{l:T CloudSession}" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <TextBlock Classes="caption" Text="{l:T CloudSessionHelp}" />
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <Button Name="SessionButton" Content="{l:T ChooseSession}" />
                                 <TextBlock Classes="caption" Text="{l:T OrDragJson}" VerticalAlignment="Center" />
                             </StackPanel>
-                            <TextBlock>
-                                <Run Text="{Binding HasPublishSession, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="{l:T SessionLoaded}" />
-                            </TextBlock>
-                            <TextBlock Classes="caption" Text="{Binding SessionStatus}" />
+                            <TextBlock Classes="caption" Text="{Binding SessionStatus}"
+                                       IsVisible="{Binding SessionStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                         </StackPanel>
                     </Border>
 
-                    <!-- Setup status -->
-                    <Border Classes="card">
-                        <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="{l:T SetupStatus}" Margin="0,0,0,4" />
-                            <TextBlock>
-                                <Run Text="{Binding HasGeminiKey, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="{l:T GeminiKey}" />
-                            </TextBlock>
-                            <TextBlock>
-                                <Run Text="{Binding HasGeoKey, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="{l:T PlacesKey}" />
-                            </TextBlock>
-                            <TextBlock IsVisible="{Binding Features.Publish}">
-                                <Run Text="{Binding HasGoogleLogin, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="{l:T SignedInMyMaps}" />
-                            </TextBlock>
-                            <TextBlock IsVisible="{Binding Features.Publish}">
-                                <Run Text="{Binding HasDriveCredentials, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="{l:T DriveCredsFile}" />
-                            </TextBlock>
-                            <TextBlock IsVisible="{Binding Features.Publish}">
-                                <Run Text="{Binding HasDriveToken, Converter={x:Static vm:BoolTick.Instance}}" />
-                                <Run Text="{l:T DriveAuthorized}" />
-                            </TextBlock>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- About & updates -->
-                    <Border Classes="card" IsVisible="{Binding Features.Updates}">
-                        <StackPanel Spacing="8">
-                            <TextBlock Classes="subhead" Text="{l:T AboutUpdates}" />
-                            <TextBlock Classes="caption">
-                                <Run Text="My Maps Generator" />
-                                <Run Text="{Binding AppVersion}" FontWeight="SemiBold" />
-                            </TextBlock>
+                    <!-- == About & updates == -->
+                    <Border Classes="card" Padding="20" IsVisible="{Binding Features.Updates}">
+                        <StackPanel Spacing="14">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Left" Classes="iconBadge">
+                                    <!-- Height only: a fixed square box leaves the tall pin off-center. -->
+                                    <Path Classes="icon" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Stroke="#60A5FA" Data="{StaticResource IconPin}" />
+                                </Border>
+                                <Border DockPanel.Dock="Right" Classes="pill">
+                                    <TextBlock Text="{Binding AppVersion}" Foreground="{StaticResource TextPrimaryBrush}" />
+                                </Border>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Classes="subhead" Text="My Maps Generator" />
+                                    <TextBlock Classes="caption" Text="{l:T AboutUpdates}" />
+                                </StackPanel>
+                            </DockPanel>
+                            <DockPanel IsVisible="{Binding UpdateStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                <Arc Classes="spinner" DockPanel.Dock="Left" Width="13" Height="13" Margin="0,0,8,0"
+                                     VerticalAlignment="Center" StartAngle="0" SweepAngle="270"
+                                     Stroke="#60A5FA" StrokeThickness="2" StrokeLineCap="Round"
+                                     IsVisible="{Binding IsCheckingUpdate}" />
+                                <TextBlock Text="{Binding UpdateStatus}" TextWrapping="Wrap" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </DockPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="{l:T CheckUpdates}"
-                                        Command="{Binding CheckForUpdatesCommand}"
-                                        IsEnabled="{Binding !IsCheckingUpdate}" />
-                                <Button Classes="accent" Content="{l:T DownloadInstall}"
-                                        IsVisible="{Binding UpdateAvailable}"
-                                        Command="{Binding DownloadAndInstallUpdateCommand}" />
-                                <Button Content="{l:T ReleasePage}"
-                                        Command="{Binding OpenReleasePageCommand}" />
+                                <Button Command="{Binding CheckForUpdatesCommand}" Padding="14,8">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Path Classes="icon" Width="15" Height="15" VerticalAlignment="Center" Data="{StaticResource IconRefresh}" />
+                                        <TextBlock Text="{l:T CheckUpdates}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Classes="accent" Padding="14,8" IsVisible="{Binding UpdateAvailable}"
+                                        Command="{Binding DownloadAndInstallUpdateCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Path Classes="icon" Width="15" Height="15" VerticalAlignment="Center" Stroke="#FFFFFF" Data="{StaticResource IconDownload}" />
+                                        <TextBlock Text="{l:T DownloadInstall}" VerticalAlignment="Center" Foreground="#FFFFFF" />
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
-                            <TextBlock Classes="caption" Text="{Binding UpdateStatus}"
-                                       IsVisible="{Binding UpdateStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- == Reset everything (two-step so it can't happen by accident) == -->
+                    <Border Classes="card dangerCard" Padding="20">
+                        <StackPanel Spacing="10">
+                            <TextBlock Classes="subhead" Text="{l:T ResetTitle}" Foreground="{StaticResource DangerBrush}" />
+                            <TextBlock Classes="caption" Text="{l:T ResetHelp}" />
+                            <Button HorizontalAlignment="Left" Padding="14,8" Command="{Binding AskResetCommand}"
+                                    IsVisible="{Binding !IsConfirmingReset}">
+                                <TextBlock Text="{l:T ResetButton}" Foreground="{StaticResource DangerBrush}" />
+                            </Button>
+                            <Border IsVisible="{Binding IsConfirmingReset}" CornerRadius="10" Padding="14,12"
+                                    Background="#1FEF4444" BorderBrush="#59EF4444" BorderThickness="1">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="{l:T ResetConfirm}" FontWeight="SemiBold" TextWrapping="Wrap"
+                                               Foreground="{StaticResource DangerBrush}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Classes="danger" Padding="14,8" Command="{Binding ResetAllCommand}">
+                                            <TextBlock Text="{l:T ResetYes}" Foreground="#FFFFFF" />
+                                        </Button>
+                                        <Button Padding="14,8" Content="{l:T ResetCancel}" Command="{Binding CancelResetCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
                 </StackPanel>

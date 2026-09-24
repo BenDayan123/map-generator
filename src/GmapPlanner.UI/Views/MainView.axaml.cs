@@ -53,6 +53,9 @@ public partial class MainView : UserControl
         WireHoldReveal(GeminiKeyEye, GeminiKeyBox);
         WireHoldReveal(GeoKeyEye, GeoKeyBox);
 
+        // Settings inputs drop to one column when the page area (not the window) gets narrow.
+        MainPad.SizeChanged += (_, e) => RootGrid.Classes.Set("narrowPage", e.NewSize.Width < NarrowPageWidth);
+
         // Phone drawer: the menu button opens it; the scrim or picking a page closes it.
         MenuButton.Click += (_, _) => SetDrawerOpen(true);
         Scrim.PointerPressed += (_, _) => SetDrawerOpen(false);
@@ -73,6 +76,9 @@ public partial class MainView : UserControl
 
     /// <summary>Below this width (phones) the sidebar becomes a drawer behind a top bar.</summary>
     private const double CompactWidth = 760;
+
+    /// <summary>Below this page width the Settings input grid stacks into one column.</summary>
+    private const double NarrowPageWidth = 560;
 
     private void SetDrawerOpen(bool open) => RootGrid.Classes.Set("drawerOpen", open);
 
