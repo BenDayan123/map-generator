@@ -89,7 +89,7 @@ jobs:
       # Double-click installer (runs the curl one-liner). Zipped with ditto so the +x bit
       # survives the browser download — a bare .command would arrive non-executable.
       - name: Zip the .command installer
-        run: ditto -c -k --keepParent build/Install-MyMapsGenerator.command build/Install-MyMapsGenerator-mac.zip
+        run: cd build && ditto -c -k Install-MyMapsGenerator.command Install-MyMapsGenerator-mac.zip
 
       - uses: actions/upload-artifact@v4
         with:
