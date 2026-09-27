@@ -91,6 +91,15 @@ public class SetupBundleServiceTests
             if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
         }
     }
+
+    [Theory]
+    [InlineData("""{"installed":{"client_id":"abc"}}""", true)]
+    [InlineData("""{"web":{"client_id":"abc"}}""", true)]
+    [InlineData("""{"installed":{}}""", false)]
+    [InlineData("""{"GmapPlanner.sln":"x","CLAUDE.md":"y"}""", false)] // the wrong JSON that broke Drive
+    [InlineData("not json", false)]
+    public void IsOAuthClient_acceptsOnlyGoogleClientFiles(string json, bool expected) =>
+        Assert.Equal(expected, SetupBundleService.IsOAuthClient(json));
 }
 
 public class UsageRingTests

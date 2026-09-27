@@ -46,30 +46,20 @@ public static class PublishService
         CancellationToken ct = default)
     {
         // Authenticate Drive up front (one consent) so we fail fast before the browser.
-        // Every map gets its download/copy restriction applied, so Drive is useful even
-        // with no recipients — but without them it stays optional (no credentials needed).
-        DriveShareService? drive = null;
-        try
-        {
-            drive = await DriveShareService.CreateAsync(ct: ct);
-        }
-        catch (DriveShareException)
-        {
-            if (recipients.Count > 0) throw;
-        }
+        // Required even with no recipients: every map must get its download/copy restriction.
+        var drive = await DriveShareService.CreateAsync(ct: ct);
 
         await using var session = await MyMapsSession.StartAsync(headless: headless, log: log);
         return await PublishWithAsync(session, drive, kmlFiles, tripName, recipients, role, notify, progress, ct);
     }
 
     /// <summary>
-    /// The per-KML create → restrict → share loop over an already-open session and (optional) Drive
-    /// service. The desktop path builds those from the persistent profile / file OAuth; the cloud
+    /// The per-KML create → restrict → share loop over an already-open session and Drive service. The desktop path builds those from the persistent profile / file OAuth; the cloud
     /// worker passes a storage-state session and a Drive service built from the user's session.json.
     /// </summary>
     public static async Task<List<PublishedMap>> PublishWithAsync(
         MyMapsSession session,
-        DriveShareService? drive,
+        DriveShareService drive,
         IReadOnlyList<string> kmlFiles,
         string tripName,
         IReadOnlyList<string> recipients,
@@ -94,13 +84,13 @@ public static class PublishService
                 record.Url = created.Url;
                 record.Mid = created.Mid;
 
-                if (drive is not null)
-                    await drive.RestrictDownloadAsync(record.Mid, title, ct);
+                // Always, shared or not; throws (row shows failed, sharing skipped) if it doesn't stick.
+                await drive.RestrictDownloadAsync(record.Mid, title, ct);
 
                 if (recipients.Count > 0)
                 {
                     progress?.Invoke(PublishProgress.Sharing(i, total), (i + 0.7) / total);
-                    record.SharedWith = await drive!.ShareMapAsync(
+                    record.SharedWith = await drive.ShareMapAsync(
                         record.Mid, recipients, role, title, notify, ct);
                 }
             }

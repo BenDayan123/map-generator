@@ -42,20 +42,34 @@ public static class SetupBundleService
             if (!bundle.TryGetPropertyValue(alias, out var node) || node is null) continue;
             var text = AsText(node);
             if (string.IsNullOrWhiteSpace(text)) continue;
-            try
+            // Only a real OAuth client counts — anything else would silently break Drive later.
+            if (IsOAuthClient(text))
             {
-                JsonNode.Parse(text); // only real JSON counts
                 credentials = text;
                 applied.Add("credentials.json");
-            }
-            catch
-            {
-                // Not valid JSON — skip rather than hand back a corrupt file.
             }
             break;
         }
 
         return new BundleMerge(settings, credentials, applied);
+    }
+
+    /// <summary>
+    /// True when <paramref name="json"/> is a Google OAuth client file (Cloud Console's download:
+    /// an <c>installed</c> or <c>web</c> object with a <c>client_id</c>) — what Drive auth needs.
+    /// </summary>
+    public static bool IsOAuthClient(string json)
+    {
+        try
+        {
+            var root = JsonNode.Parse(json) as JsonObject;
+            var client = root?["installed"] ?? root?["web"];
+            return client?["client_id"] is JsonValue id && id.TryGetValue<string>(out var s) && s.Length > 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>Parses bundle text and merges it. Throws on invalid JSON (not a JSON object).</summary>

@@ -198,7 +198,8 @@ and generation is `PipelineService.GenerateAsync` in memory.
   `UNAUTHENTICATED` or a bad key) aborts the whole itinerary (keeping Gemini's coordinates
   for whatever's left); anything else, including no match, falls back per-location.
 - **`KmlBuilder`** — uses `SharpKml.Core` instead of hand-rolled XML. Same pin-icon
-  URL scheme (`mt.google.com/vt/icon`, 3-layer stack, `psize` shrinks as digits grow),
+  URL scheme (`mt.google.com/vt/icon`, 3-layer stack: colored pin + colored circle + white
+  `1499-shape_circle` disc with a black number, `psize` shrinks as digits grow),
   same per-day colors (`AppConfig.DayColors`), same `{first}.kml` / `{first}-{last}.kml`
   naming.
 - **`AppSettingsService`** / **`AppDataPaths`** — port `appconfig.py` / `paths.py`'s
@@ -252,10 +253,12 @@ and generation is `PipelineService.GenerateAsync` in memory.
   sharing goes through `permissions.create` rather than the brittle share dialog.
   `RestrictDownloadAsync` sets `copyRequiresWriterPermission`, which is the API form of
   Share → gear → "Commenters and viewers" under *download, print, and copy*; it is
-  applied to every created map and is best-effort, so a failure never loses a map.
-  Needs an OAuth **Desktop** client saved as `credentials.json` in the app data dir;
-  the token is cached beside it. Drive auth runs up front so a bad setup fails before
-  the browser work — but with no recipients it stays optional.
+  applied to every created map, shared or not, and read back — if it doesn't stick the row fails
+  (the map is kept, sharing is skipped). So Drive is **required** for every publish.
+  Needs an OAuth **Desktop** client saved as `credentials.json` in the app data dir (the Settings
+  picker and setup bundle accept only a real client — `SetupBundleService.IsOAuthClient`; a wrong
+  JSON once silently disabled the restriction); the token is cached beside it. Drive auth runs up
+  front so a bad setup fails before the browser work.
 
 The browser is deliberately **not** bundled (that's what keeps the download reasonable);
 Playwright fetches Chromium on first publish. Playwright's own node driver *is* bundled
@@ -334,7 +337,9 @@ one are the same platform.
   `.playwright` driver to `Contents/Resources` (not scanned) and leaves a symlink at its
   expected `Contents/MacOS/.playwright` path. An ad-hoc app runs on Apple Silicon, but a
   browser download needs Privacy & Security → Open Anyway once — or the
-  `build/install-macos.sh` curl one-liner, which isn't quarantined. User steps:
+  `build/install-macos.sh` curl one-liner, which isn't quarantined (also shipped as a double-click
+  `build/Install-MyMapsGenerator.command`, zipped by CI so its +x bit survives the download;
+  `.gitattributes` keeps `*.sh`/`*.command` LF — a CRLF script dies on the Mac). User steps:
   `docs/macos-install.md`. An **unsealed** bundle (the old single-file layout) is what made
   real Macs say "damaged" with no way past it — never ship one.
 - **Cutting a release:** merge to `main`, then `git tag v1.2.3 && git push origin v1.2.3`.

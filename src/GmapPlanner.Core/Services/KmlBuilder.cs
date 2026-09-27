@@ -29,19 +29,19 @@ public static class KmlBuilder
     }
 
     /// <summary>
-    /// Google My Maps icon URL: a solid-color teardrop pin with <paramref name="n"/> in
-    /// solid white. 3-layer stack so the digit fills solid instead of a hollow outline.
-    /// <paramref name="color"/> is hex RGB (no #); the number is always white for contrast.
+    /// Google My Maps icon URL: a teardrop pin in the day's color with a white disc holding
+    /// <paramref name="n"/> in black. Layers: pin tail + colored circle (both
+    /// <paramref name="color"/>, hex RGB, no #), then the smaller white circle glyph.
     /// </summary>
     public static string NumberedPinHref(int n, string color = "0288D1")
     {
-        var psize = n < 10 ? 20 : n < 100 ? 17 : 12;
+        var psize = n < 10 ? 15 : 11; // trips never reach 3-digit stops
         return "https://mt.google.com/vt/icon/name="
             + "icons/onion/SHARED-mymaps-pin-container_4x.png,"
             + "icons/onion/SHARED-mymaps-container_4x.png,"
-            + "icons/onion/1899-blank-shape_pin_4x.png"
-            + $"&highlight={color},{color},ffffff&scale=4.0&color=ffffffff"
-            + $"&font=fonts/Roboto-Regular.ttf&ay=46&psize={psize}&text={n}";
+            + "icons/onion/1499-shape_circle_4x.png"
+            + $"&highlight={color},{color},ffffff&scale=4.0&color=ff000000"
+            + $"&font=fonts/Roboto-Medium.ttf&ay=46&psize={psize}&text={n}";
     }
 
     /// <summary>Splits days into chunks of at most `layersPerFile` (one day = one layer).</summary>

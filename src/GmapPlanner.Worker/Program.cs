@@ -36,16 +36,8 @@ try
         kmlPaths.Add(path);
     }
 
-    // Drive is optional when there are no recipients (we still restrict downloads when it's available).
-    DriveShareService? drive = null;
-    try
-    {
-        drive = await DriveShareService.CreateAsync(credentialsPath, tokenDir);
-    }
-    catch (DriveShareException) when (payload.Recipients.Count == 0)
-    {
-        drive = null;
-    }
+    // Drive is required even with no recipients: every map must get its download/copy restriction.
+    var drive = await DriveShareService.CreateAsync(credentialsPath, tokenDir);
 
     await using var session = await MyMapsSession.StartFromStorageStateAsync(
         payload.Session.StorageState, headless: true, log: Console.WriteLine);

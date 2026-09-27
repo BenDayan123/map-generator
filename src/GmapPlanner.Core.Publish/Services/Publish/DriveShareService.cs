@@ -115,9 +115,10 @@ public class DriveShareService(DriveService drive)
     /// Turns off "Viewers and commenters can see the option to download, print, copy".
     /// Same switch as Share → gear → "Commenters and viewers" in the My Maps/Drive
     /// dialog; Drive exposes it as copyRequiresWriterPermission, so there's no dialog
-    /// to drive. Best-effort: a failure here must not lose an otherwise-published map.
+    /// to drive. Reads the flag back and throws if Google didn't keep it, so an unrestricted
+    /// map shows up as a failed row instead of passing silently (the map itself is kept).
     /// </summary>
-    public async Task<bool> RestrictDownloadAsync(string mid, string? title = null, CancellationToken ct = default)
+    public async Task RestrictDownloadAsync(string mid, string? title = null, CancellationToken ct = default)
     {
         try
         {
@@ -125,14 +126,15 @@ public class DriveShareService(DriveService drive)
             var update = drive.Files.Update(
                 new Google.Apis.Drive.v3.Data.File { CopyRequiresWriterPermission = true },
                 fileId);
-            update.Fields = "id";
-            await update.ExecuteAsync(ct);
-            return true;
+            update.Fields = "copyRequiresWriterPermission";
+            var result = await update.ExecuteAsync(ct);
+            if (result.CopyRequiresWriterPermission != true)
+                throw new DriveShareException("Google didn't keep the setting.");
         }
         catch (Exception e)
         {
-            Console.WriteLine($"  ! Could not restrict download/copy for the map: {e.Message}");
-            return false;
+            throw new DriveShareException(
+                $"The map was created, but download/copy/print for viewers couldn't be turned off: {e.Message}", e);
         }
     }
 

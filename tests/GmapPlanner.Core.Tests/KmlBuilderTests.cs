@@ -17,11 +17,10 @@ public class KmlBuilderTests
     }
 
     [Theory]
-    [InlineData(1, 20)]
-    [InlineData(9, 20)]
-    [InlineData(10, 17)]
-    [InlineData(99, 17)]
-    [InlineData(100, 12)]
+    [InlineData(1, 15)]
+    [InlineData(9, 15)]
+    [InlineData(10, 11)]
+    [InlineData(99, 11)]
     public void NumberedPinHref_ShrinksPsizeAsDigitsGrow(int n, int expectedPsize)
     {
         var href = KmlBuilder.NumberedPinHref(n, "D32F2F");

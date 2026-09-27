@@ -177,6 +177,7 @@ internal static class Strings
         ["SetupNothing"] = ("Nothing loaded — no recognized keys in that file.", "לא נטען דבר — לא נמצאו מפתחות מוכרים בקובץ."),
         ["SetupLoaded"] = ("Loaded: {0}.", "נטען: {0}."),
         ["CredsSaved"] = ("Saved credentials.json.", "credentials.json נשמר."),
+        ["CredsNotOAuth"] = ("this isn't an OAuth client file (download it from Google Cloud Console → Credentials)", "זה לא קובץ OAuth client (הורידו אותו מ-Google Cloud Console → Credentials)"),
         ["CredsInvalid"] = ("Not a valid credentials.json: {0}", "קובץ credentials.json לא תקין: {0}"),
         ["AnNotConfigured"] = ("Analytics storage isn't configured. On the Settings page, paste the service-account JSON and set the Analytics Sheet ID, then share the Sheet (Editor) with the service account's email and enable the Google Sheets API.", "אחסון הסטטיסטיקות לא הוגדר. בעמוד ההגדרות, הדביקו את ה-JSON של חשבון השירות והגדירו את מזהה גיליון הסטטיסטיקות, ואז שתפו את הגיליון (עורך) עם האימייל של חשבון השירות והפעילו את Google Sheets API."),
         ["AnLoading"] = ("Loading from the Google Sheet…", "טוען מה-Google Sheet…"),

@@ -541,7 +541,10 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             var text = await ReadTextAsync(file);
-            JsonNode.Parse(text); // reject a non-JSON file before overwriting
+            // Reject anything but an OAuth client before overwriting — a wrong JSON here
+            // makes Drive fail on every publish.
+            if (!SetupBundleService.IsOAuthClient(text))
+                throw new InvalidDataException(Loc.T("CredsNotOAuth"));
             _platform.SaveDriveCredentials(text);
             RefreshSetupStatus();
             SetupMessage = Loc.T("CredsSaved");
