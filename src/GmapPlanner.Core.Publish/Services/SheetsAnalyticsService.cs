@@ -85,7 +85,7 @@ public sealed class SheetsAnalyticsService(HttpClient http)
     /// </summary>
     public async Task RecordPublishAsync(
         string saJson, string sheetIdRaw, string tripName, int maps, int places, IEnumerable<string> mapLinks,
-        CancellationToken ct = default)
+        TimeSpan? utcOffset = null, CancellationToken ct = default)
     {
         var sheetId = AnalyticsSheet.SheetIdOf(sheetIdRaw);
         if (string.IsNullOrWhiteSpace(saJson) || string.IsNullOrEmpty(sheetId)) return;
@@ -94,7 +94,9 @@ public sealed class SheetsAnalyticsService(HttpClient http)
             var token = await TokenAsync(saJson, ct);
             await ApplyLayoutAsync(sheetId, token, ct);
 
-            var now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            // The cloud worker runs on UTC; it passes the user's offset so the row lands on their day.
+            var at = utcOffset is { } offset ? DateTime.UtcNow + offset : DateTime.Now;
+            var now = at.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
             var links = string.Join("\n", mapLinks.Where(l => !string.IsNullOrWhiteSpace(l)));
             var row = new JsonArray(now, SafeText(string.IsNullOrWhiteSpace(tripName) ? "(unnamed)" : tripName), maps, places, links);
             var payload = new JsonObject { ["values"] = new JsonArray(row) };

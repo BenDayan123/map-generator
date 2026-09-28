@@ -22,8 +22,12 @@ if [ ! -w "/Applications" ]; then
 fi
 osascript -e 'quit app "My Maps Generator"' 2>/dev/null || true
 while pgrep -xq GmapPlanner.App; do sleep 0.5; done
+# Copy beside the old app first and swap only once the copy succeeded, so a failed copy
+# (disk full, etc.) never leaves the user with no app.
+rm -rf "/Applications/$APP.new"
+ditto "$TMP/mnt/$APP" "/Applications/$APP.new"
 rm -rf "/Applications/$APP"
-ditto "$TMP/mnt/$APP" "/Applications/$APP"
+mv "/Applications/$APP.new" "/Applications/$APP"
 xattr -dr com.apple.quarantine "/Applications/$APP" 2>/dev/null || true
 echo "Installed to /Applications. Opening..."
 open "/Applications/$APP"

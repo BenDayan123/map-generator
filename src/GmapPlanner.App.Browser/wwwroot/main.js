@@ -13,6 +13,9 @@ globalThis.gmapPlanner = {
         window.open(url, '_blank', 'noopener');
     },
     origin: () => location.origin,
+    // Minutes ahead of UTC (Israel summer: 180). The cloud worker runs on UTC, so it needs this
+    // to log trips on the user's own day.
+    utcOffsetMinutes: () => -new Date().getTimezoneOffset(),
     downloadText: (fileName, content, mimeType) => {
         const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
         const link = document.createElement('a');

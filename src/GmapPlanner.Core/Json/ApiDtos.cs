@@ -42,7 +42,8 @@ public sealed record JobSubmitRequest(
     [property: JsonPropertyName("notify")] bool Notify,
     [property: JsonPropertyName("session")] JsonElement Session,
     [property: JsonPropertyName("saJson")] JsonElement? SaJson,
-    [property: JsonPropertyName("sheetId")] string? SheetId);
+    [property: JsonPropertyName("sheetId")] string? SheetId,
+    [property: JsonPropertyName("utcOffsetMinutes")] int? UtcOffsetMinutes = null);
 
 public sealed record JobSubmitResponse([property: JsonPropertyName("id")] string Id);
 

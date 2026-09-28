@@ -22,7 +22,8 @@ public sealed record JobPayload(
     bool Notify,
     SessionFile Session,
     JsonElement? SaJson,
-    string? SheetId);
+    string? SheetId,
+    int? UtcOffsetMinutes = null); // the user's clock, so the UTC runner logs trips on their day
 
 /// <summary>One published map, per source KML file — enough for the browser to fill its result rows.</summary>
 public sealed record JobMap(

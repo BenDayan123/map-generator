@@ -242,7 +242,7 @@ public partial class MainViewModel : ViewModelBase
         // Over time: months (all time) or days (last 30). Days label every 5th column so
         // 30 labels don't collide; every column still has its own tooltip.
         var buckets = AnalyticsStats.Timeline(rows, range, now);
-        var max = Math.Max(1, buckets.Max(b => b.Places));
+        var max = Math.Max(1, buckets.Count == 0 ? 0 : buckets.Max(b => b.Places)); // empty if every date is in the future
         TimelineTitle = Loc.T(range == AnalyticsRange.AllTime ? "AnPlacesPerMonth" : "AnPlacesPerDay");
         TimelineMax = max.ToString(CultureInfo.InvariantCulture);
         TimelineColumns.Clear();
@@ -303,7 +303,7 @@ public partial class MainViewModel : ViewModelBase
 
     // --- Run state ----------------------------------------------------------
     [ObservableProperty] private string _statusText = "";
-    [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(ResetAllCommand))] private bool _isBusy;
     [ObservableProperty] private double _progress;
     [ObservableProperty] private string _errorText = "";
     [ObservableProperty] private bool _hasResult;
@@ -321,6 +321,7 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPublishStatus))]
     [NotifyCanExecuteChangedFor(nameof(StartOverCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetAllCommand))]
     private bool _isPublishing;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(PublishIndeterminate))] private double _publishFraction;
     [ObservableProperty] private string _publishDetail = "";
@@ -471,7 +472,10 @@ public partial class MainViewModel : ViewModelBase
     private void CancelReset() => IsConfirmingReset = false;
 
     /// <summary>Settings → "Reset everything": wipes every saved key, file and sign-in on this device.</summary>
-    [RelayCommand]
+    // Not mid-run: reset deletes the browser profile and Drive token a live publish is using.
+    private bool CanResetAll() => !IsBusy && !IsPublishing;
+
+    [RelayCommand(CanExecute = nameof(CanResetAll))]
     private void ResetAll()
     {
         IsConfirmingReset = false;
@@ -482,6 +486,7 @@ public partial class MainViewModel : ViewModelBase
         LoginStatus = SessionStatus = UpdateStatus = "";
         _lastGauge = null;
         HasUsage = false;
+        SaveSettings(); // setters only save on change — keep the language if the keys were already blank
         RefreshSetupStatus();
         SetupMessage = Loc.T("ResetDone");
     }
@@ -761,9 +766,11 @@ public partial class MainViewModel : ViewModelBase
             {
                 if (!byFile.TryGetValue(map.FileName, out var row)) continue;
                 row.MapError = map.Error;
+                // A map can exist even when a later step failed (e.g. the download restriction) —
+                // keep its link so the user can open it instead of making a duplicate.
+                if (map.ViewUrl.Length > 0) row.MapUrl = map.ViewUrl;
                 if (map.Error.Length == 0)
                 {
-                    row.MapUrl = map.ViewUrl;
                     row.SharedWith = map.SharedWith.Count > 0
                         ? Loc.F("SharedWith", string.Join(", ", map.SharedWith))
                         : Loc.T("NotShared");

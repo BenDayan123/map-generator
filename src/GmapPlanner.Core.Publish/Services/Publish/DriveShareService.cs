@@ -131,7 +131,7 @@ public class DriveShareService(DriveService drive)
             if (result.CopyRequiresWriterPermission != true)
                 throw new DriveShareException("Google didn't keep the setting.");
         }
-        catch (Exception e)
+        catch (Exception e) when (e is not OperationCanceledException)
         {
             throw new DriveShareException(
                 $"The map was created, but download/copy/print for viewers couldn't be turned off: {e.Message}", e);

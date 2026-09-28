@@ -21,8 +21,10 @@ Run the same line again any time to reinstall.
 
 **Rather not use Terminal?** Download **Install-MyMapsGenerator-mac.zip** from the
 [latest release](https://github.com/BenDayan123/map-generator/releases/latest), double-click it to
-unzip, then **right-click** `Install-MyMapsGenerator.command` → **Open** → **Open** (macOS asks
-once because the file comes from the internet). It runs the same line for you.
+unzip, then double-click `Install-MyMapsGenerator.command`. macOS blocks it the first time because
+the file comes from the internet: go to **System Settings → Privacy & Security**, click
+**Open Anyway** next to the message about it, and confirm. (On macOS 14 or older, right-click the
+file → **Open** → **Open** also works.) It runs the same line for you.
 
 ## Option B — download the .dmg
 

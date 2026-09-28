@@ -89,7 +89,7 @@ public sealed partial class BrowserPlatformServices : IPlatformServices
         var req = new JobSubmitRequest(
             tripName,
             files.Select(f => new JobKmlDto(f.FileName, f.Content)).ToList(),
-            recipients, role, notify, session, saJson, sheetId);
+            recipients, role, notify, session, saJson, sheetId, UtcOffsetMinutes());
 
         progress("Submitting the publish job…", 0.05);
         var id = await Api.SubmitJobAsync(req);
@@ -155,4 +155,7 @@ public sealed partial class BrowserPlatformServices : IPlatformServices
 
     [JSImport("globalThis.gmapPlanner.origin")]
     private static partial string Origin();
+
+    [JSImport("globalThis.gmapPlanner.utcOffsetMinutes")]
+    private static partial int UtcOffsetMinutes();
 }

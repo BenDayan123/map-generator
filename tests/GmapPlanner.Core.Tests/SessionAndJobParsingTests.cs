@@ -45,6 +45,19 @@ public class SessionAndJobParsingTests
     }
 
     [Fact]
+    public void Browser_utc_offset_reaches_the_worker_payload()
+    {
+        // The browser serializes JobSubmitRequest (Core); the worker reads JobPayload (Core.Publish).
+        var req = new JobSubmitRequest("Kyoto", [new JobKmlDto("d.kml", "<kml/>")], [], "reader", false,
+            Empty("""{"version":1,"storageState":{},"driveCredentials":{},"driveToken":{}}"""), null, null, 180);
+        var json = JsonSerializer.Serialize(req, GmapPlannerJsonContext.Default.JobSubmitRequest);
+        Assert.Equal(180, JsonSerializer.Deserialize(json, PublishJsonContext.Default.JobPayload)!.UtcOffsetMinutes);
+
+        var old = JsonSerializer.Serialize(req with { UtcOffsetMinutes = null }, GmapPlannerJsonContext.Default.JobSubmitRequest);
+        Assert.Null(JsonSerializer.Deserialize(old, PublishJsonContext.Default.JobPayload)!.UtcOffsetMinutes);
+    }
+
+    [Fact]
     public void JobStatus_carries_maps_and_error_code()
     {
         var status = new JobStatus("failed", Message: "map 2/3", ErrorCode: "SESSION_EXPIRED");

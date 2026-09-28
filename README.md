@@ -51,7 +51,8 @@ Run **MyMapsGenerator-Setup-win-x64.exe**. If SmartScreen warns, click **More in
    Applications, and opens it. You can close Terminal.
    *No Terminal?* Download **Install-MyMapsGenerator-mac.zip** from the
    [latest release](https://github.com/BenDayan123/map-generator/releases/latest), unzip it,
-   then right-click `Install-MyMapsGenerator.command` → **Open** → **Open**. It runs the same line.
+   then double-click `Install-MyMapsGenerator.command`; when macOS blocks it, go to **System
+   Settings → Privacy & Security → Open Anyway**. It runs the same line.
 7. From now on open it like any app — from Applications or ⌘ Space → "My Maps Generator".
 
 **First-time setup inside the app**

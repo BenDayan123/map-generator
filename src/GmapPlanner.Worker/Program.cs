@@ -73,7 +73,8 @@ try
             using var http = new HttpClient();
             await new SheetsAnalyticsService(http).RecordPublishAsync(
                 sa.GetRawText(), payload.SheetId!, payload.TripName,
-                successful.Count, places, successful.Select(m => m.ViewUrl).ToList());
+                successful.Count, places, successful.Select(m => m.ViewUrl).ToList(),
+                payload.UtcOffsetMinutes is { } mins ? TimeSpan.FromMinutes(mins) : null);
         }
         catch (Exception e)
         {
